@@ -1,4 +1,4 @@
-name: build
+name: ci
 
 on:
   push:
@@ -6,9 +6,11 @@ on:
       - main
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  server-build:
+  test:
+    name: test
     runs-on: ubuntu-latest
 
     steps:
@@ -22,31 +24,67 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Build and test server
+      - name: Test server
         working-directory: server
-        run: ./mvnw -B package
+        run: ./mvnw -B test
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-reports
+          path: server/target/surefire-reports
+          if-no-files-found: ignore
+
+  build:
+    name: build (${{ matrix.component }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: server
+            os: ubuntu-latest
+          - component: client
+            os: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: matrix.component == 'server'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build server
+        if: matrix.component == 'server'
+        working-directory: server
+        run: ./mvnw -B package -DskipTests
 
       - name: Upload server artifact
+        if: matrix.component == 'server'
         uses: actions/upload-artifact@v4
         with:
           name: InfoGuardServer-jar
           path: server/target/server-0.0.1-SNAPSHOT.jar
           if-no-files-found: error
 
-  windows-build:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure
+      - name: Configure client
+        if: matrix.component == 'client'
         run: cmake -S . -B build -A x64
 
-      - name: Build
+      - name: Build client
+        if: matrix.component == 'client'
         run: cmake --build build --config Release --target InfoGuardTrayApp
 
-      - name: Upload artifact
+      - name: Upload client artifact
+        if: matrix.component == 'client'
         uses: actions/upload-artifact@v4
         with:
           name: InfoGuardTrayApp-windows
