@@ -3,6 +3,8 @@
 #include <shellapi.h>
 #include <windows.h>
 
+#include "windows_service_client.h"
+
 namespace {
 
 constexpr wchar_t kWindowTitle[] = L"InfoGuard Tray Application";
@@ -180,6 +182,19 @@ void TrayApplication::UpdateStatusText() const {
     SetWindowTextW(status_label_, text.c_str());
 }
 
+void TrayApplication::HandleExitCommand() {
+    WindowsServiceClient service_client;
+    std::wstring error_message;
+    if (!service_client.RequestServiceStop(&error_message)) {
+        const wchar_t* message =
+            error_message.empty() ? L"Failed to stop the Windows service." : error_message.c_str();
+        MessageBoxW(window_, message, kWindowTitle, MB_ICONERROR | MB_OK);
+        return;
+    }
+
+    RequestExit();
+}
+
 void TrayApplication::RequestExit() {
     exit_requested_ = true;
     DestroyWindow(window_);
@@ -240,7 +255,7 @@ LRESULT TrayApplication::HandleMessage(UINT message, WPARAM w_param, LPARAM l_pa
 
         case kCommandTrayExit:
         case kCommandFileExit:
-            RequestExit();
+            HandleExitCommand();
             return 0;
 
         default:

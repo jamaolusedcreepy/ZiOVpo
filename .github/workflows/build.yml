@@ -86,14 +86,16 @@ jobs:
         if: matrix.component == 'client'
         run: cmake -S . -B build -A x64
 
-      - name: Build client
+      - name: Build Windows binaries
         if: matrix.component == 'client'
-        run: cmake --build build --config Release --target InfoGuardTrayApp
+        run: cmake --build build --config Release --target InfoGuardTrayApp InfoGuardService
 
-      - name: Upload client artifact
+      - name: Upload Windows artifacts
         if: matrix.component == 'client'
         uses: actions/upload-artifact@v4
         with:
-          name: InfoGuardTrayApp-windows
-          path: build/Release/InfoGuardTrayApp.exe
+          name: InfoGuard-windows-binaries
+          path: |
+            build/Release/InfoGuardTrayApp.exe
+            build/Release/InfoGuardService.exe
           if-no-files-found: error

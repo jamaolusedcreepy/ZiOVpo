@@ -29,6 +29,7 @@ private:
     void HideMainWindow() const;
     void ShowTrayMenu();
     void UpdateStatusText() const;
+    void HandleExitCommand();
     void RequestExit();
     LRESULT HandleMessage(UINT message, WPARAM w_param, LPARAM l_param);
 

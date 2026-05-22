@@ -5,6 +5,7 @@
 
 #include "single_instance.h"
 #include "tray_application.h"
+#include "windows_service_client.h"
 
 namespace {
 
@@ -31,6 +32,25 @@ bool StartsHidden() {
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
+    WindowsServiceClient service_client;
+    std::wstring error_message;
+    switch (service_client.PrepareForGuiLaunch(&error_message)) {
+    case WindowsServiceClient::StartupDecision::ContinueLaunch:
+        break;
+
+    case WindowsServiceClient::StartupDecision::ExitAfterServiceStart:
+    case WindowsServiceClient::StartupDecision::ExitBecauseParentMismatch:
+        return 0;
+
+    case WindowsServiceClient::StartupDecision::ExitWithError:
+        MessageBoxW(
+            nullptr,
+            error_message.empty() ? L"Failed to prepare the Windows service." : error_message.c_str(),
+            L"InfoGuard Tray Application",
+            MB_ICONERROR | MB_OK);
+        return 1;
+    }
+
     SingleInstanceGuard single_instance(L"InfoGuardTrayApp");
     if (!single_instance.Acquire()) {
         return 0;
