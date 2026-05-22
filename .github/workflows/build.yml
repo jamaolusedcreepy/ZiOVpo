@@ -1,0 +1,54 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  server-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build and test server
+        working-directory: server
+        run: ./mvnw -B package
+
+      - name: Upload server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfoGuardServer-jar
+          path: server/target/server-0.0.1-SNAPSHOT.jar
+          if-no-files-found: error
+
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --target InfoGuardTrayApp
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfoGuardTrayApp-windows
+          path: build/Release/InfoGuardTrayApp.exe
+          if-no-files-found: error
