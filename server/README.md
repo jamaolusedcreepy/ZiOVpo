@@ -1,11 +1,12 @@
 # InfoGuardServer
 
-Minimal backend for the course work:
+Backend for the course work:
 
 - Java 21
 - Spring Boot 3.5.14
 - Spring Security
 - JWT access/refresh
+- signed license tickets
 - role model `ADMIN` / `USER`
 - PostgreSQL
 - Flyway migrations
@@ -15,10 +16,11 @@ Minimal backend for the course work:
 
 - creates a bootstrap administrator at first start
 - stores users in a relational database
-- stores licenses bound to users
+- stores activation codes and activated licenses bound to users/devices
 - issues JWT access and refresh tokens
+- issues signed `TicketResponse` payloads for active licenses
 - restricts `/api/admin/**` endpoints to administrators
-- exposes a small bootstrap endpoint for the future Win32 client
+- supports create / activate / check / renew license flows
 
 ## Quick start
 
@@ -118,10 +120,14 @@ Change these values through environment variables before production-like use:
 
 - `GET /api/admin/users`
 - `POST /api/admin/users`
+- `POST /api/admin/licenses`
+- `POST /api/admin/licenses/{licenseId}/renew`
 
 ### Licenses
 
 - `GET /api/licenses/me`
+- `GET /api/licenses/current?deviceId=...`
+- `POST /api/licenses/activate`
 
 ### Client bootstrap
 
@@ -142,7 +148,8 @@ Recommended order in Postman:
 4. `Admin / Create User`
 5. `Authentication / Login Current User`
 6. `Licenses / My Licenses`
-7. `Client / Bootstrap`
+7. `Licenses / Activate`
+8. `Licenses / Current Ticket`
 
 If Postman rejects the self-signed certificate, either trust the local certificate with `trust-dev-certificate.ps1` or temporarily disable SSL certificate verification in Postman settings for local development.
 
@@ -175,6 +182,26 @@ Content-Type: application/json
 }
 ```
 
+### Activate a product code for the current user
+
+```http
+POST /api/licenses/activate
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "licenseKey": "LIC-23358-ABCDEF123456",
+  "deviceId": "DEV-23358-DEMO"
+}
+```
+
+### Check the current signed ticket
+
+```http
+GET /api/licenses/current?deviceId=DEV-23358-DEMO
+Authorization: Bearer <access-token>
+```
+
 ### Refresh token
 
 ```http
@@ -202,12 +229,17 @@ Useful overrides from [src/main/resources/application.yml](</C:/Users/musht/Docu
 - `APP_JWT_SECRET`
 - `APP_JWT_ACCESS_TTL`
 - `APP_JWT_REFRESH_TTL`
+- `APP_LICENSE_CERTIFICATE_BASE`
+- `APP_LICENSE_DEFAULT_VALID_DAYS`
+- `APP_LICENSE_TICKET_LIFETIME`
+- `APP_LICENSE_TICKET_SIGNATURE_SECRET`
 
-## How it connects to the Win32 client
+## How it connects to the Win32 service
 
-The current client already has a local user/license presentation layer. The server exposes `/api/client/bootstrap`, `/api/auth/login`, and `/api/licenses/me`, so the next client iteration can:
+The Windows service now talks to the backend over HTTPS and keeps all JWT tokens and license tickets in memory. The Win32 GUI never receives raw JWTs or raw ticket payloads. The service uses:
 
-1. authenticate the user,
-2. store access/refresh tokens,
-3. fetch bound licenses from the backend,
-4. display server-backed license status in the main window.
+1. `POST /api/auth/login`
+2. `POST /api/auth/refresh`
+3. `POST /api/auth/logout`
+4. `GET /api/licenses/current?deviceId=...`
+5. `POST /api/licenses/activate`

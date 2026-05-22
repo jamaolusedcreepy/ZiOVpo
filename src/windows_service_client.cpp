@@ -86,6 +86,16 @@ private:
     RPC_WSTR value_;
 };
 
+class ScopedRpcBinding {
+public:
+    ~ScopedRpcBinding() {
+        if (InfoGuardServiceRpcBinding != nullptr) {
+            RpcBindingFree(&InfoGuardServiceRpcBinding);
+            InfoGuardServiceRpcBinding = nullptr;
+        }
+    }
+};
+
 bool QueryServiceStatusState(
     SC_HANDLE service,
     DWORD* current_state,
@@ -163,6 +173,74 @@ bool GetParentProcessId(DWORD* parent_process_id, std::wstring* error_message) {
     return true;
 }
 
+bool CreateRpcBinding(std::wstring* error_message) {
+    ScopedRpcString binding_string;
+
+    RPC_STATUS status = RpcStringBindingComposeW(
+        nullptr,
+        reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(service_constants::kRpcProtocolSequence)),
+        nullptr,
+        reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(service_constants::kRpcEndpoint)),
+        nullptr,
+        binding_string.put());
+    if (status != RPC_S_OK) {
+        *error_message = L"RpcStringBindingComposeW failed with status " + std::to_wstring(status) + L".";
+        return false;
+    }
+
+    status = RpcBindingFromStringBindingW(binding_string.get(), &InfoGuardServiceRpcBinding);
+    if (status != RPC_S_OK) {
+        *error_message = L"RpcBindingFromStringBindingW failed with status " + std::to_wstring(status) + L".";
+        return false;
+    }
+
+    return true;
+}
+
+void FreeRpcString(wchar_t** value) {
+    if (value != nullptr && *value != nullptr) {
+        midl_user_free(*value);
+        *value = nullptr;
+    }
+}
+
+void FreeRpcUserInfo(InfoGuardRpcUserInfo* user_info) {
+    if (user_info == nullptr) {
+        return;
+    }
+
+    FreeRpcString(&user_info->username);
+    FreeRpcString(&user_info->fullName);
+    FreeRpcString(&user_info->role);
+}
+
+void FreeRpcLicenseInfo(InfoGuardRpcLicenseInfo* license_info) {
+    if (license_info == nullptr) {
+        return;
+    }
+
+    FreeRpcString(&license_info->deviceId);
+    FreeRpcString(&license_info->activatedAt);
+    FreeRpcString(&license_info->expiresAt);
+}
+
+RpcCallStatus MapRpcStatus(const DWORD status) {
+    switch (status) {
+    case ERROR_SUCCESS:
+        return RpcCallStatus::Success;
+    case ERROR_NOT_FOUND:
+        return RpcCallStatus::NotFound;
+    case ERROR_ACCESS_DENIED:
+    case ERROR_LOGON_FAILURE:
+        return RpcCallStatus::AccessDenied;
+    case RPC_S_CALL_FAILED:
+    case RPC_S_SERVER_UNAVAILABLE:
+        return RpcCallStatus::Unavailable;
+    default:
+        return RpcCallStatus::Failed;
+    }
+}
+
 DWORD CallStopServiceRpc() {
     DWORD exception_code = RPC_S_OK;
 
@@ -175,6 +253,111 @@ DWORD CallStopServiceRpc() {
     RpcEndExcept
 
     return exception_code;
+}
+
+DWORD CallGetCurrentUserRpc(InfoGuardRpcUserInfo* user_info, wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcGetCurrentUser(user_info, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+DWORD CallLoginRpc(
+    wchar_t* username,
+    wchar_t* password,
+    InfoGuardRpcUserInfo* user_info,
+    wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcLogin(username, password, user_info, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+DWORD CallLogoutRpc(wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcLogout(error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+DWORD CallGetActiveLicenseRpc(InfoGuardRpcLicenseInfo* license_info, wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcGetActiveLicense(license_info, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+DWORD CallActivateProductRpc(
+    wchar_t* activation_code,
+    InfoGuardRpcLicenseInfo* license_info,
+    wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcActivateProduct(activation_code, license_info, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+std::wstring TakeRpcMessage(wchar_t** rpc_message) {
+    std::wstring result;
+    if (rpc_message != nullptr && *rpc_message != nullptr) {
+        result = *rpc_message;
+        FreeRpcString(rpc_message);
+    }
+    return result;
+}
+
+void CopyUserInfo(const InfoGuardRpcUserInfo& rpc_user, AuthenticatedUserInfo* user) {
+    user->user_id = static_cast<unsigned long long>(rpc_user.userId);
+    user->username = rpc_user.username == nullptr ? L"" : rpc_user.username;
+    user->full_name = rpc_user.fullName == nullptr ? L"" : rpc_user.fullName;
+    user->role = rpc_user.role == nullptr ? L"" : rpc_user.role;
+}
+
+void CopyLicenseInfo(const InfoGuardRpcLicenseInfo& rpc_license, ActiveLicenseInfo* license) {
+    license->blocked = rpc_license.blocked != FALSE;
+    license->device_id = rpc_license.deviceId == nullptr ? L"" : rpc_license.deviceId;
+    license->activated_at = rpc_license.activatedAt == nullptr ? L"" : rpc_license.activatedAt;
+    license->expires_at = rpc_license.expiresAt == nullptr ? L"" : rpc_license.expiresAt;
 }
 
 }  // namespace
@@ -352,35 +535,123 @@ WindowsServiceClient::StartupDecision WindowsServiceClient::PrepareForGuiLaunch(
 }
 
 bool WindowsServiceClient::RequestServiceStop(std::wstring* error_message) const {
-    ScopedRpcString binding_string;
-
-    RPC_STATUS status = RpcStringBindingComposeW(
-        nullptr,
-        reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(service_constants::kRpcProtocolSequence)),
-        nullptr,
-        reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(service_constants::kRpcEndpoint)),
-        nullptr,
-        binding_string.put());
-    if (status != RPC_S_OK) {
-        *error_message = L"RpcStringBindingComposeW failed with status " + std::to_wstring(status) + L".";
-        return false;
-    }
-
-    status = RpcBindingFromStringBindingW(binding_string.get(), &InfoGuardServiceRpcBinding);
-    if (status != RPC_S_OK) {
-        *error_message = L"RpcBindingFromStringBindingW failed with status " + std::to_wstring(status) + L".";
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(error_message)) {
         return false;
     }
 
     const DWORD rpc_result = CallStopServiceRpc();
     if (rpc_result != RPC_S_OK) {
-        *error_message = L"RPC stop request failed with exception code " + std::to_wstring(rpc_result) + L".";
+        *error_message = L"RPC stop request failed with code " + std::to_wstring(rpc_result) + L".";
+        return false;
     }
 
-    if (InfoGuardServiceRpcBinding != nullptr) {
-        RpcBindingFree(&InfoGuardServiceRpcBinding);
-        InfoGuardServiceRpcBinding = nullptr;
+    return true;
+}
+
+UserQueryResult WindowsServiceClient::GetCurrentUser() const {
+    UserQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
     }
 
-    return rpc_result == RPC_S_OK;
+    InfoGuardRpcUserInfo rpc_user = {};
+    wchar_t* rpc_message = nullptr;
+    const DWORD status = CallGetCurrentUserRpc(&rpc_user, &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyUserInfo(rpc_user, &result.user);
+    }
+
+    FreeRpcUserInfo(&rpc_user);
+    return result;
+}
+
+UserQueryResult WindowsServiceClient::Login(const std::wstring& username, const std::wstring& password) const {
+    UserQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
+    }
+
+    InfoGuardRpcUserInfo rpc_user = {};
+    wchar_t* rpc_message = nullptr;
+    std::wstring mutable_username = username;
+    std::wstring mutable_password = password;
+    const DWORD status = CallLoginRpc(
+        mutable_username.data(),
+        mutable_password.data(),
+        &rpc_user,
+        &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyUserInfo(rpc_user, &result.user);
+    }
+
+    FreeRpcUserInfo(&rpc_user);
+    return result;
+}
+
+RpcCallStatus WindowsServiceClient::Logout(std::wstring* error_message) const {
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(error_message)) {
+        return RpcCallStatus::Unavailable;
+    }
+
+    wchar_t* rpc_message = nullptr;
+    const DWORD status = CallLogoutRpc(&rpc_message);
+    *error_message = TakeRpcMessage(&rpc_message);
+    return MapRpcStatus(status);
+}
+
+LicenseQueryResult WindowsServiceClient::GetActiveLicense() const {
+    LicenseQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
+    }
+
+    InfoGuardRpcLicenseInfo rpc_license = {};
+    wchar_t* rpc_message = nullptr;
+    const DWORD status = CallGetActiveLicenseRpc(&rpc_license, &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyLicenseInfo(rpc_license, &result.license);
+    }
+
+    FreeRpcLicenseInfo(&rpc_license);
+    return result;
+}
+
+LicenseQueryResult WindowsServiceClient::ActivateProduct(const std::wstring& activation_code) const {
+    LicenseQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
+    }
+
+    InfoGuardRpcLicenseInfo rpc_license = {};
+    wchar_t* rpc_message = nullptr;
+    std::wstring mutable_code = activation_code;
+    const DWORD status = CallActivateProductRpc(mutable_code.data(), &rpc_license, &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyLicenseInfo(rpc_license, &result.license);
+    }
+
+    FreeRpcLicenseInfo(&rpc_license);
+    return result;
 }

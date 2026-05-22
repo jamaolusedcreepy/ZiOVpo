@@ -31,13 +31,25 @@ public class LicenseEntity {
     private long certificateNumber;
 
     @Column(nullable = false)
-    private boolean active = true;
+    private boolean active = false;
+
+    @Column(nullable = false)
+    private boolean blocked = false;
 
     @Column(name = "issued_at", nullable = false)
     private OffsetDateTime issuedAt;
 
+    @Column(name = "activated_at")
+    private OffsetDateTime activatedAt;
+
     @Column(name = "expires_at")
     private OffsetDateTime expiresAt;
+
+    @Column(name = "device_id", length = 128)
+    private String deviceId;
+
+    @Column(name = "validity_days", nullable = false)
+    private int validityDays;
 
     public Long getId() {
         return id;
@@ -79,6 +91,14 @@ public class LicenseEntity {
         this.active = active;
     }
 
+    public boolean isBlocked() {
+        return blocked;
+    }
+
+    public void setBlocked(boolean blocked) {
+        this.blocked = blocked;
+    }
+
     public OffsetDateTime getIssuedAt() {
         return issuedAt;
     }
@@ -87,11 +107,35 @@ public class LicenseEntity {
         this.issuedAt = issuedAt;
     }
 
+    public OffsetDateTime getActivatedAt() {
+        return activatedAt;
+    }
+
+    public void setActivatedAt(OffsetDateTime activatedAt) {
+        this.activatedAt = activatedAt;
+    }
+
     public OffsetDateTime getExpiresAt() {
         return expiresAt;
     }
 
     public void setExpiresAt(OffsetDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public String getDeviceId() {
+        return deviceId;
+    }
+
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
+    }
+
+    public int getValidityDays() {
+        return validityDays;
+    }
+
+    public void setValidityDays(int validityDays) {
+        this.validityDays = validityDays;
     }
 }

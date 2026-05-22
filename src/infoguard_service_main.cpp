@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "service_session_manager.h"
 #include "service_constants.h"
 
 extern "C" {
@@ -78,6 +79,39 @@ std::wstring GetDirectoryName(const std::wstring& path) {
 
 std::wstring QuoteArgument(const std::wstring& argument) {
     return L"\"" + argument + L"\"";
+}
+
+wchar_t* DuplicateRpcString(const std::wstring& value) {
+    const std::size_t bytes = (value.size() + 1) * sizeof(wchar_t);
+    auto* copy = static_cast<wchar_t*>(midl_user_allocate(bytes));
+    if (copy == nullptr) {
+        return nullptr;
+    }
+
+    memcpy(copy, value.c_str(), bytes);
+    return copy;
+}
+
+void ResetRpcUserInfo(InfoGuardRpcUserInfo* user_info) {
+    if (user_info == nullptr) {
+        return;
+    }
+
+    user_info->userId = 0;
+    user_info->username = nullptr;
+    user_info->fullName = nullptr;
+    user_info->role = nullptr;
+}
+
+void ResetRpcLicenseInfo(InfoGuardRpcLicenseInfo* license_info) {
+    if (license_info == nullptr) {
+        return;
+    }
+
+    license_info->blocked = FALSE;
+    license_info->deviceId = nullptr;
+    license_info->activatedAt = nullptr;
+    license_info->expiresAt = nullptr;
 }
 
 bool GrantInteractiveUsersStartAccess(SC_HANDLE service, std::wstring* error_message) {
@@ -371,6 +405,7 @@ private:
             return;
         }
 
+        session_manager_.Start();
         ReportStatus(SERVICE_RUNNING, SERVICE_ACCEPT_SESSIONCHANGE, NO_ERROR, 0);
         LaunchForExistingSessions();
 
@@ -378,10 +413,130 @@ private:
         (void)listen_status;
 
         ReportStatus(SERVICE_STOP_PENDING, 0, NO_ERROR, 3000);
+        session_manager_.Stop();
         TerminateAllChildProcesses();
         ReportStatus(SERVICE_STOPPED, 0, NO_ERROR, 0);
     }
 
+public:
+    long RpcGetCurrentUser(
+        InfoGuardRpcUserInfo* user_info,
+        wchar_t** error_message) {
+        ResetRpcUserInfo(user_info);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceAuthenticatedUserInfo service_user;
+        std::wstring message;
+        const DWORD result = session_manager_.GetCurrentUser(&service_user, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        user_info->userId = static_cast<hyper>(service_user.user_id);
+        user_info->username = DuplicateRpcString(service_user.username);
+        user_info->fullName = DuplicateRpcString(service_user.full_name);
+        user_info->role = DuplicateRpcString(service_user.role);
+        return ERROR_SUCCESS;
+    }
+
+    long RpcLogin(
+        const std::wstring& username,
+        const std::wstring& password,
+        InfoGuardRpcUserInfo* user_info,
+        wchar_t** error_message) {
+        ResetRpcUserInfo(user_info);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceAuthenticatedUserInfo service_user;
+        std::wstring message;
+        const DWORD result = session_manager_.Login(username, password, &service_user, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        user_info->userId = static_cast<hyper>(service_user.user_id);
+        user_info->username = DuplicateRpcString(service_user.username);
+        user_info->fullName = DuplicateRpcString(service_user.full_name);
+        user_info->role = DuplicateRpcString(service_user.role);
+        return ERROR_SUCCESS;
+    }
+
+    long RpcLogout(wchar_t** error_message) {
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        std::wstring message;
+        const DWORD result = session_manager_.Logout(&message);
+        if (result != ERROR_SUCCESS && error_message != nullptr) {
+            *error_message = DuplicateRpcString(message);
+        }
+
+        return static_cast<long>(result);
+    }
+
+    long RpcGetActiveLicense(
+        InfoGuardRpcLicenseInfo* license_info,
+        wchar_t** error_message) {
+        ResetRpcLicenseInfo(license_info);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceActiveLicenseInfo service_license;
+        std::wstring message;
+        const DWORD result = session_manager_.GetActiveLicense(&service_license, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        license_info->blocked = service_license.blocked ? TRUE : FALSE;
+        license_info->deviceId = DuplicateRpcString(service_license.device_id);
+        license_info->activatedAt = DuplicateRpcString(service_license.activated_at);
+        license_info->expiresAt = DuplicateRpcString(service_license.expires_at);
+        return ERROR_SUCCESS;
+    }
+
+    long RpcActivateProduct(
+        const std::wstring& activation_code,
+        InfoGuardRpcLicenseInfo* license_info,
+        wchar_t** error_message) {
+        ResetRpcLicenseInfo(license_info);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceActiveLicenseInfo service_license;
+        std::wstring message;
+        const DWORD result = session_manager_.ActivateProduct(activation_code, &service_license, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        license_info->blocked = service_license.blocked ? TRUE : FALSE;
+        license_info->deviceId = DuplicateRpcString(service_license.device_id);
+        license_info->activatedAt = DuplicateRpcString(service_license.activated_at);
+        license_info->expiresAt = DuplicateRpcString(service_license.expires_at);
+        return ERROR_SUCCESS;
+    }
+
+private:
     DWORD HandleServiceControl(DWORD control, DWORD event_type, LPVOID event_data) {
         switch (control) {
         case SERVICE_CONTROL_INTERROGATE:
@@ -595,12 +750,47 @@ private:
     std::mutex child_processes_mutex_;
     std::map<DWORD, ChildProcessInfo> child_processes_;
     std::atomic_bool stop_requested_ = false;
+    ServiceSessionManager session_manager_;
 };
 
 }  // namespace
 
 void InfoGuardRpcStopService() {
     ServiceHost::Instance().ScheduleRpcStop();
+}
+
+long InfoGuardRpcGetCurrentUser(InfoGuardRpcUserInfo* userInfo, wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcGetCurrentUser(userInfo, errorMessage);
+}
+
+long InfoGuardRpcLogin(
+    wchar_t* username,
+    wchar_t* password,
+    InfoGuardRpcUserInfo* userInfo,
+    wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcLogin(
+        username == nullptr ? L"" : username,
+        password == nullptr ? L"" : password,
+        userInfo,
+        errorMessage);
+}
+
+long InfoGuardRpcLogout(wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcLogout(errorMessage);
+}
+
+long InfoGuardRpcGetActiveLicense(InfoGuardRpcLicenseInfo* licenseInfo, wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcGetActiveLicense(licenseInfo, errorMessage);
+}
+
+long InfoGuardRpcActivateProduct(
+    wchar_t* activationCode,
+    InfoGuardRpcLicenseInfo* licenseInfo,
+    wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcActivateProduct(
+        activationCode == nullptr ? L"" : activationCode,
+        licenseInfo,
+        errorMessage);
 }
 
 int wmain(const int argc, wchar_t* argv[]) {

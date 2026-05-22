@@ -40,3 +40,5 @@ app:
   license:
     certificate-base: ${APP_LICENSE_CERTIFICATE_BASE:23358}
     default-valid-days: ${APP_LICENSE_DEFAULT_VALID_DAYS:365}
+    ticket-lifetime: ${APP_LICENSE_TICKET_LIFETIME:PT15M}
+    ticket-signature-secret: ${APP_LICENSE_TICKET_SIGNATURE_SECRET:ticket-signature-demo-secret-23358}

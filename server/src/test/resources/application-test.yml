@@ -28,3 +28,5 @@ app:
   license:
     certificate-base: 23358
     default-valid-days: 365
+    ticket-lifetime: PT15M
+    ticket-signature-secret: test-ticket-signature-secret-23358

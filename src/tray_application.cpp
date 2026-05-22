@@ -3,8 +3,6 @@
 #include <shellapi.h>
 #include <windows.h>
 
-#include "windows_service_client.h"
-
 namespace {
 
 constexpr wchar_t kWindowTitle[] = L"InfoGuard Tray Application";
@@ -12,6 +10,29 @@ constexpr wchar_t kTooltipText[] = L"InfoGuard Tray Application";
 constexpr wchar_t kMenuFile[] = L"\u0424\u0430\u0439\u043b";
 constexpr wchar_t kMenuOpen[] = L"\u041e\u0442\u043a\u0440\u044b\u0442\u044c";
 constexpr wchar_t kMenuExit[] = L"\u0412\u044b\u0445\u043e\u0434";
+constexpr wchar_t kLoginButtonText[] = L"Sign In";
+constexpr wchar_t kLogoutButtonText[] = L"Sign Out";
+constexpr wchar_t kActivateButtonText[] = L"Activate";
+constexpr wchar_t kAntivirusButtonText[] = L"Run Scan (Demo)";
+
+void ApplyDefaultGuiFont(HWND control) {
+    if (control != nullptr) {
+        SendMessageW(
+            control,
+            WM_SETFONT,
+            reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)),
+            TRUE);
+    }
+}
+
+std::wstring GetWindowTextValue(HWND control) {
+    const int length = GetWindowTextLengthW(control);
+    std::wstring value(length, L'\0');
+    if (length > 0) {
+        GetWindowTextW(control, value.data(), length + 1);
+    }
+    return value;
+}
 
 }  // namespace
 
@@ -32,6 +53,8 @@ bool TrayApplication::Initialize(int show_command) {
         window_ = nullptr;
         return false;
     }
+
+    RefreshUiState();
 
     if (!start_hidden_) {
         ShowMainWindow(show_command);
@@ -73,8 +96,8 @@ bool TrayApplication::CreateMainWindow() {
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        620,
-        380,
+        760,
+        520,
         nullptr,
         nullptr,
         instance_,
@@ -85,7 +108,6 @@ bool TrayApplication::CreateMainWindow() {
     }
 
     CreateMainMenu();
-    UpdateStatusText();
     return true;
 }
 
@@ -98,6 +120,174 @@ void TrayApplication::CreateMainMenu() const {
 
     SetMenu(window_, menu_bar);
     DrawMenuBar(window_);
+}
+
+void TrayApplication::CreateControls() {
+    status_label_ = CreateWindowExW(
+        0,
+        L"STATIC",
+        L"",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        20,
+        20,
+        700,
+        220,
+        window_,
+        nullptr,
+        instance_,
+        nullptr);
+
+    username_label_ = CreateWindowExW(
+        0,
+        L"STATIC",
+        L"Username",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        20,
+        260,
+        100,
+        20,
+        window_,
+        nullptr,
+        instance_,
+        nullptr);
+
+    username_edit_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"EDIT",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+        20,
+        284,
+        260,
+        24,
+        window_,
+        reinterpret_cast<HMENU>(kCommandLogin + 100),
+        instance_,
+        nullptr);
+
+    password_label_ = CreateWindowExW(
+        0,
+        L"STATIC",
+        L"Password",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        20,
+        320,
+        100,
+        20,
+        window_,
+        nullptr,
+        instance_,
+        nullptr);
+
+    password_edit_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"EDIT",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_PASSWORD | ES_AUTOHSCROLL,
+        20,
+        344,
+        260,
+        24,
+        window_,
+        reinterpret_cast<HMENU>(kCommandLogin + 101),
+        instance_,
+        nullptr);
+
+    login_button_ = CreateWindowExW(
+        0,
+        L"BUTTON",
+        kLoginButtonText,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+        20,
+        382,
+        120,
+        30,
+        window_,
+        reinterpret_cast<HMENU>(kCommandLogin),
+        instance_,
+        nullptr);
+
+    logout_button_ = CreateWindowExW(
+        0,
+        L"BUTTON",
+        kLogoutButtonText,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+        160,
+        382,
+        120,
+        30,
+        window_,
+        reinterpret_cast<HMENU>(kCommandLogout),
+        instance_,
+        nullptr);
+
+    activation_label_ = CreateWindowExW(
+        0,
+        L"STATIC",
+        L"Activation code",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        320,
+        260,
+        140,
+        20,
+        window_,
+        nullptr,
+        instance_,
+        nullptr);
+
+    activation_edit_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"EDIT",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+        320,
+        284,
+        240,
+        24,
+        window_,
+        reinterpret_cast<HMENU>(kCommandActivate + 100),
+        instance_,
+        nullptr);
+
+    activate_button_ = CreateWindowExW(
+        0,
+        L"BUTTON",
+        kActivateButtonText,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+        320,
+        382,
+        120,
+        30,
+        window_,
+        reinterpret_cast<HMENU>(kCommandActivate),
+        instance_,
+        nullptr);
+
+    antivirus_button_ = CreateWindowExW(
+        0,
+        L"BUTTON",
+        kAntivirusButtonText,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
+        320,
+        344,
+        180,
+        28,
+        window_,
+        nullptr,
+        instance_,
+        nullptr);
+
+    ApplyDefaultGuiFont(status_label_);
+    ApplyDefaultGuiFont(username_label_);
+    ApplyDefaultGuiFont(username_edit_);
+    ApplyDefaultGuiFont(password_label_);
+    ApplyDefaultGuiFont(password_edit_);
+    ApplyDefaultGuiFont(login_button_);
+    ApplyDefaultGuiFont(logout_button_);
+    ApplyDefaultGuiFont(activation_label_);
+    ApplyDefaultGuiFont(activation_edit_);
+    ApplyDefaultGuiFont(activate_button_);
+    ApplyDefaultGuiFont(antivirus_button_);
 }
 
 bool TrayApplication::AddTrayIcon() {
@@ -139,7 +329,7 @@ void TrayApplication::RemoveTrayIcon() {
 }
 
 void TrayApplication::ShowMainWindow(int show_command) {
-    UpdateStatusText();
+    RefreshUiState();
     const int effective_show_command =
         (IsIconic(window_) != FALSE || show_command == SW_SHOWMINIMIZED) ? SW_RESTORE : SW_SHOW;
     ShowWindow(window_, effective_show_command);
@@ -173,13 +363,108 @@ void TrayApplication::ShowTrayMenu() {
     DestroyMenu(menu);
 }
 
+void TrayApplication::RefreshUiState() {
+    state_snapshot_ = license_service_.RefreshSnapshot();
+    UpdateStatusText();
+    UpdateControlVisibility();
+}
+
 void TrayApplication::UpdateStatusText() const {
     if (status_label_ == nullptr) {
         return;
     }
 
-    const std::wstring text = license_service_.BuildStatusText();
+    const std::wstring text = license_service_.BuildStatusText(state_snapshot_);
     SetWindowTextW(status_label_, text.c_str());
+}
+
+void TrayApplication::UpdateControlVisibility() const {
+    const bool show_auth_controls = !state_snapshot_.authenticated;
+    const bool show_activation_controls = state_snapshot_.authenticated && !state_snapshot_.has_license;
+    const bool show_logout = state_snapshot_.authenticated;
+    const bool antivirus_enabled = state_snapshot_.antivirus_unlocked;
+
+    ShowWindow(username_label_, show_auth_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(username_edit_, show_auth_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(password_label_, show_auth_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(password_edit_, show_auth_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(login_button_, show_auth_controls ? SW_SHOW : SW_HIDE);
+
+    ShowWindow(logout_button_, show_logout ? SW_SHOW : SW_HIDE);
+    ShowWindow(activation_label_, show_activation_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(activation_edit_, show_activation_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(activate_button_, show_activation_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(antivirus_button_, state_snapshot_.authenticated ? SW_SHOW : SW_HIDE);
+    EnableWindow(antivirus_button_, antivirus_enabled ? TRUE : FALSE);
+}
+
+void TrayApplication::LayoutControls(const int width, const int height) const {
+    if (status_label_ == nullptr) {
+        return;
+    }
+
+    const int control_width = width > 40 ? width - 40 : 1;
+    const int status_height = height > 240 ? height - 240 : 180;
+
+    MoveWindow(status_label_, 20, 20, control_width, status_height, TRUE);
+
+    const int lower_top = status_height + 40;
+    MoveWindow(username_label_, 20, lower_top, 120, 20, TRUE);
+    MoveWindow(username_edit_, 20, lower_top + 24, 260, 24, TRUE);
+    MoveWindow(password_label_, 20, lower_top + 60, 120, 20, TRUE);
+    MoveWindow(password_edit_, 20, lower_top + 84, 260, 24, TRUE);
+    MoveWindow(login_button_, 20, lower_top + 122, 120, 30, TRUE);
+    MoveWindow(logout_button_, 160, lower_top + 122, 120, 30, TRUE);
+
+    MoveWindow(activation_label_, 320, lower_top, 160, 20, TRUE);
+    MoveWindow(activation_edit_, 320, lower_top + 24, 260, 24, TRUE);
+    MoveWindow(antivirus_button_, 320, lower_top + 84, 180, 28, TRUE);
+    MoveWindow(activate_button_, 320, lower_top + 122, 120, 30, TRUE);
+}
+
+void TrayApplication::HandleLoginCommand() {
+    const std::wstring username = GetWindowTextValue(username_edit_);
+    const std::wstring password = GetWindowTextValue(password_edit_);
+
+    const UserQueryResult result = license_service_.Login(username, password);
+    if (result.status != RpcCallStatus::Success) {
+        const wchar_t* message = result.message.empty() ? L"Unable to sign in." : result.message.c_str();
+        MessageBoxW(window_, message, kWindowTitle, MB_ICONERROR | MB_OK);
+        RefreshUiState();
+        return;
+    }
+
+    SetWindowTextW(password_edit_, L"");
+    RefreshUiState();
+}
+
+void TrayApplication::HandleLogoutCommand() {
+    std::wstring error_message;
+    const RpcCallStatus status = license_service_.Logout(&error_message);
+    if (status != RpcCallStatus::Success && status != RpcCallStatus::NotFound) {
+        MessageBoxW(
+            window_,
+            error_message.empty() ? L"Unable to sign out." : error_message.c_str(),
+            kWindowTitle,
+            MB_ICONERROR | MB_OK);
+        return;
+    }
+
+    RefreshUiState();
+}
+
+void TrayApplication::HandleActivateCommand() {
+    const std::wstring activation_code = GetWindowTextValue(activation_edit_);
+    const LicenseQueryResult result = license_service_.ActivateProduct(activation_code);
+    if (result.status != RpcCallStatus::Success) {
+        const wchar_t* message = result.message.empty() ? L"Activation failed." : result.message.c_str();
+        MessageBoxW(window_, message, kWindowTitle, MB_ICONERROR | MB_OK);
+        RefreshUiState();
+        return;
+    }
+
+    SetWindowTextW(activation_edit_, L"");
+    RefreshUiState();
 }
 
 void TrayApplication::HandleExitCommand() {
@@ -212,40 +497,21 @@ LRESULT TrayApplication::HandleMessage(UINT message, WPARAM w_param, LPARAM l_pa
         return TRUE;
 
     case WM_CREATE:
-        status_label_ = CreateWindowExW(
-            0,
-            L"STATIC",
-            L"",
-            WS_CHILD | WS_VISIBLE | SS_LEFT,
-            20,
-            20,
-            560,
-            280,
-            window_,
-            nullptr,
-            instance_,
-            nullptr);
-
-        if (status_label_ != nullptr) {
-            SendMessageW(
-                status_label_,
-                WM_SETFONT,
-                reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)),
-                TRUE);
-        }
-
-        UpdateStatusText();
+        CreateControls();
+        RefreshUiState();
+        SetTimer(window_, kStateRefreshTimerId, 15000, nullptr);
         return 0;
 
     case WM_SIZE:
-        if (status_label_ != nullptr) {
-            const int width = LOWORD(l_param);
-            const int height = HIWORD(l_param);
-            const int control_width = width > 40 ? width - 40 : 1;
-            const int control_height = height > 40 ? height - 40 : 1;
-            MoveWindow(status_label_, 20, 20, control_width, control_height, TRUE);
-        }
+        LayoutControls(LOWORD(l_param), HIWORD(l_param));
         return 0;
+
+    case WM_TIMER:
+        if (w_param == kStateRefreshTimerId) {
+            RefreshUiState();
+            return 0;
+        }
+        break;
 
     case WM_COMMAND:
         switch (LOWORD(w_param)) {
@@ -256,6 +522,18 @@ LRESULT TrayApplication::HandleMessage(UINT message, WPARAM w_param, LPARAM l_pa
         case kCommandTrayExit:
         case kCommandFileExit:
             HandleExitCommand();
+            return 0;
+
+        case kCommandLogin:
+            HandleLoginCommand();
+            return 0;
+
+        case kCommandActivate:
+            HandleActivateCommand();
+            return 0;
+
+        case kCommandLogout:
+            HandleLogoutCommand();
             return 0;
 
         default:
@@ -288,6 +566,7 @@ LRESULT TrayApplication::HandleMessage(UINT message, WPARAM w_param, LPARAM l_pa
         break;
 
     case WM_DESTROY:
+        KillTimer(window_, kStateRefreshTimerId);
         RemoveTrayIcon();
         PostQuitMessage(0);
         return 0;

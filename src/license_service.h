@@ -2,30 +2,30 @@
 
 #include <string>
 
-#include "server_api_client.h"
+#include "windows_service_client.h"
 
-struct UserProfile {
+struct ClientStateSnapshot {
+    bool authenticated = false;
     std::wstring username;
-    std::wstring binding_id;
-};
-
-struct LicenseInfo {
-    std::wstring license_code;
-    std::wstring plan_name;
-    bool is_active = false;
+    std::wstring full_name;
+    std::wstring role;
+    bool has_license = false;
+    bool license_blocked = false;
+    bool antivirus_unlocked = false;
+    std::wstring device_id;
+    std::wstring activated_at;
+    std::wstring expires_at;
+    std::wstring message;
 };
 
 class LicenseService {
 public:
-    UserProfile GetCurrentUser() const;
-    LicenseInfo GetLicenseForUser(const UserProfile& user) const;
-    std::wstring BuildStatusText() const;
+    ClientStateSnapshot RefreshSnapshot() const;
+    UserQueryResult Login(const std::wstring& username, const std::wstring& password) const;
+    RpcCallStatus Logout(std::wstring* error_message) const;
+    LicenseQueryResult ActivateProduct(const std::wstring& activation_code) const;
+    std::wstring BuildStatusText(const ClientStateSnapshot& snapshot) const;
 
 private:
-    std::wstring BuildServerStatusText(
-        const UserProfile& local_user,
-        const LicenseInfo& local_license,
-        const ServerLicenseSnapshot& snapshot) const;
-
-    ServerApiClient server_api_client_;
+    WindowsServiceClient service_client_;
 };

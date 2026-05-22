@@ -100,8 +100,6 @@ add_executable(InfoGuardTrayApp WIN32
     src/license_service.cpp
     src/license_service.h
     src/main.cpp
-    src/server_api_client.cpp
-    src/server_api_client.h
     src/service_constants.h
     src/single_instance.cpp
     src/single_instance.h
@@ -120,13 +118,18 @@ target_link_libraries(InfoGuardTrayApp PRIVATE
 )
 
 add_executable(InfoGuardService
+    src/backend_api_client.cpp
+    src/backend_api_client.h
     src/infoguard_service_main.cpp
     src/service_constants.h
+    src/service_session_manager.cpp
+    src/service_session_manager.h
 )
 infoguard_apply_common_target_settings(InfoGuardService)
 target_link_libraries(InfoGuardService PRIVATE
     advapi32
     userenv
     wtsapi32
+    winhttp
     infoguard_service_rpc_server
 )

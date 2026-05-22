@@ -26,8 +26,10 @@ Repository with two parts for the assignment:
 - when the service is stopped, the client starts it, waits for `Running`, and exits
 - the client continues to run only when launched by the Windows service
 - tray `Exit` and main menu `File -> Exit` stop the Windows service over Windows RPC / ALPC
-- backend integration over HTTPS using WinHTTP
-- server login and license bootstrap with fallback to the local demo stub when the backend is unavailable
+- authentication form backed by the Windows service
+- product activation form backed by the Windows service
+- periodic license-state polling through the Windows service
+- antivirus functionality is blocked until sign-in and activation succeed
 
 ## Windows service features
 
@@ -36,7 +38,11 @@ Repository with two parts for the assignment:
 - tracks new logons and reconnect/unlock events through `SERVICE_CONTROL_SESSIONCHANGE`
 - ignores SCM `Stop` and `Shutdown` controls
 - hosts a Windows RPC server over `ncalrpc` (ALPC)
-- exposes an RPC method for the client to stop the service
+- stores JWT access/refresh tokens only in memory
+- refreshes JWT access/refresh tokens based on their expiration times
+- stores the active license ticket only in memory
+- refreshes the active license ticket based on ticket lifetime and expiration
+- exposes RPC methods for current user, sign-in, sign-out, current license, activation, and service stop
 - terminates all launched tray clients when the service stops
 
 ## Server features
@@ -46,8 +52,9 @@ Repository with two parts for the assignment:
 - authorization with `ADMIN` and `USER` roles
 - HTTPS with a development certificate whose serial number is `23358`
 - seeded administrator account on first launch
-- user creation API and license binding API
-- endpoint prepared for future Win32 client integration: `/api/client/bootstrap`
+- user creation API and license creation API
+- license activation, current-ticket check, and renewal flows
+- signed `TicketResponse` payload for the Windows service
 
 ## Build the Windows binaries
 
@@ -74,17 +81,14 @@ Hidden startup mode:
 .\build\Release\InfoGuardTrayApp.exe --hidden
 ```
 
-Client-to-server integration uses these optional environment variables:
+Service-to-server integration uses these optional environment variables:
 
 ```text
-INFOGUARD_API_ENABLED=1
 INFOGUARD_API_URL=https://localhost:8443
-INFOGUARD_API_USERNAME=admin
-INFOGUARD_API_PASSWORD=Admin23358!
-INFOGUARD_API_INSECURE_TLS=0
+INFOGUARD_API_INSECURE_TLS=1
 ```
 
-If the local certificate is already trusted, keep `INFOGUARD_API_INSECURE_TLS=0`. For a temporary local demo without importing the certificate, you may set `INFOGUARD_API_INSECURE_TLS=1`.
+`INFOGUARD_API_INSECURE_TLS=1` is convenient for local development because the Windows service runs under a system account and talks to the local self-signed HTTPS endpoint.
 
 ## Install and verify the Windows service
 
@@ -110,6 +114,19 @@ Important behavior:
 - launching `InfoGuardTrayApp.exe` manually while the service is already running should exit because its parent process is not the Windows service
 - if you update from an older build, reinstall the service so the new security settings for interactive users are applied
 
+## Verify the 2.3 flow
+
+1. Start PostgreSQL and the Java backend on `https://localhost:8443`
+2. Build `InfoGuardTrayApp.exe` and `InfoGuardService.exe`
+3. Install or restart the Windows service so it uses the current build
+4. Start the Windows service and open the tray window
+5. The main window should show the sign-in form when no user is authenticated
+6. Sign in with a server user, for example `admin / Admin23358!`
+7. If no active license ticket exists, the activation form should remain visible and antivirus functionality should stay blocked
+8. Activate a product code for the current user
+9. After activation, the main window should show the license expiration time and antivirus functionality should switch to `unlocked`
+10. Leave the app open for a while or reopen the main window to verify that state is refreshed through the service timer
+
 ## Build the server
 
 ```powershell
@@ -126,15 +143,6 @@ server\target\server-0.0.1-SNAPSHOT.jar
 
 Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [server/README.md](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/README.md>).
 
-## End-to-end check
-
-1. Start the Java backend on `https://localhost:8443`
-2. Build and install the Windows service
-3. Optionally set `INFOGUARD_API_USERNAME` and `INFOGUARD_API_PASSWORD` for the server user you want to show in the client session
-4. Start the Windows service
-5. Open the tray window from the client that was launched by the service
-6. The main window should show `Server integration: connected`, the authenticated server username, role, and the server-issued license
-
 ## Client requirement checklist
 
 1. Tray icon on startup: `TrayApplication::AddTrayIcon`
@@ -149,6 +157,11 @@ Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [ser
 10. Single instance per Windows user: `SingleInstanceGuard`
 11. Pipeline build with CMake/MSBuild: `.github/workflows/build.yml`
 12. Build artifact is the ready-to-run executable: `InfoGuardTrayApp.exe`
+13. Current authenticated user is requested from the Windows service at startup: `LicenseService::RefreshSnapshot`
+14. Authentication form is shown while signed out: `TrayApplication::UpdateControlVisibility`
+15. Activation form is shown while no ticket is available: `TrayApplication::UpdateControlVisibility`
+16. Antivirus functionality unlocks after a valid ticket is present: `LicenseService::RefreshSnapshot`
+17. License state is polled periodically: `WM_TIMER` + `RefreshUiState`
 
 ## Windows service requirement checklist
 
@@ -157,4 +170,6 @@ Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [ser
 3. Ignore `Stop` / `Shutdown`: service status accepts only `SERVICE_ACCEPT_SESSIONCHANGE`
 4. Run until RPC server is stopped: `RpcServerListen`
 5. Expose RPC interface over ALPC: `ncalrpc` endpoint in `rpc/infoguard_service_rpc.idl`
-6. Stop all launched tray clients on service shutdown: `TerminateAllChildProcesses`
+6. Keep tokens and tickets only in memory: `ServiceSessionManager`
+7. Refresh JWT and ticket according to their lifetimes: `ServiceSessionManager::WorkerLoop`
+8. Stop all launched tray clients on service shutdown: `TerminateAllChildProcesses`
