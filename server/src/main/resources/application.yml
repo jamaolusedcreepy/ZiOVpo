@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: InfoGuardServer
+  datasource:
+    url: ${APP_DB_URL:jdbc:postgresql://localhost:5432/infoguard_db}
+    username: ${APP_DB_USERNAME:infoguard}
+    password: ${APP_DB_PASSWORD:infoguard}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${APP_SERVER_PORT:8443}
+  ssl:
+    enabled: ${APP_SSL_ENABLED:true}
+    key-store: ${APP_SSL_KEYSTORE:classpath:certs/infoguard-dev.p12}
+    key-store-password: ${APP_SSL_KEYSTORE_PASSWORD:changeit23358}
+    key-store-type: PKCS12
+    key-alias: ${APP_SSL_KEY_ALIAS:1}
+
+app:
+  jwt:
+    issuer: ${APP_JWT_ISSUER:https://localhost:8443}
+    secret: ${APP_JWT_SECRET:change-me-to-a-longer-demo-secret-23358-change-me-now}
+    access-ttl: ${APP_JWT_ACCESS_TTL:PT15M}
+    refresh-ttl: ${APP_JWT_REFRESH_TTL:P7D}
+  bootstrap-admin:
+    enabled: ${APP_BOOTSTRAP_ADMIN_ENABLED:true}
+    username: ${APP_BOOTSTRAP_ADMIN_USERNAME:admin}
+    password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:Admin23358!}
+    full-name: ${APP_BOOTSTRAP_ADMIN_FULL_NAME:System Administrator}
+  license:
+    certificate-base: ${APP_LICENSE_CERTIFICATE_BASE:23358}
+    default-valid-days: ${APP_LICENSE_DEFAULT_VALID_DAYS:365}

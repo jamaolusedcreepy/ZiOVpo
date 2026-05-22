@@ -1,0 +1,10 @@
+[
+    uuid(5e6d3c11-2335-4588-9c21-7b3d1f29a221),
+    version(1.0),
+    pointer_default(unique),
+    implicit_handle(handle_t InfoGuardServiceRpcBinding)
+]
+interface InfoGuardServiceRpc
+{
+    void InfoGuardRpcStopService(void);
+}
