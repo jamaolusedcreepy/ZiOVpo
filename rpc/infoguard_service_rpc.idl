@@ -1,0 +1,48 @@
+[
+    uuid(5e6d3c11-2335-4588-9c21-7b3d1f29a221),
+    version(1.0),
+    pointer_default(unique),
+    implicit_handle(handle_t InfoGuardServiceRpcBinding)
+]
+interface InfoGuardServiceRpc
+{
+    typedef struct _InfoGuardRpcUserInfo
+    {
+        hyper userId;
+        [string] wchar_t* username;
+        [string] wchar_t* fullName;
+        [string] wchar_t* role;
+    } InfoGuardRpcUserInfo;
+
+    typedef struct _InfoGuardRpcLicenseInfo
+    {
+        boolean blocked;
+        [string] wchar_t* deviceId;
+        [string] wchar_t* activatedAt;
+        [string] wchar_t* expiresAt;
+    } InfoGuardRpcLicenseInfo;
+
+    void InfoGuardRpcStopService(void);
+
+    long InfoGuardRpcGetCurrentUser(
+        [out] InfoGuardRpcUserInfo* userInfo,
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcLogin(
+        [in, string] wchar_t* username,
+        [in, string] wchar_t* password,
+        [out] InfoGuardRpcUserInfo* userInfo,
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcLogout(
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcGetActiveLicense(
+        [out] InfoGuardRpcLicenseInfo* licenseInfo,
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcActivateProduct(
+        [in, string] wchar_t* activationCode,
+        [out] InfoGuardRpcLicenseInfo* licenseInfo,
+        [out, string] wchar_t** errorMessage);
+}

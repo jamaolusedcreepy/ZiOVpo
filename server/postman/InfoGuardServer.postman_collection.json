@@ -1,0 +1,820 @@
+{
+  "info": {
+    "_postman_id": "96d8db7d-0d0f-4337-84af-0f47d7882335",
+    "name": "InfoGuardServer Local",
+    "description": "Collection for local verification of the InfoGuard server. Covers the 2.3 flow: login, create activation code, activate a license, fetch the current signed ticket, refresh tokens and logout. Login and license requests automatically save important values into collection variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/public/ping",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "ping"
+              ]
+            },
+            "description": "Simple health check."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', data.accessToken || '');",
+                  "pm.collectionVariables.set('accessTokenExpiresAt', data.accessTokenExpiresAt || '');",
+                  "pm.collectionVariables.set('refreshToken', data.refreshToken || '');",
+                  "pm.collectionVariables.set('refreshTokenExpiresAt', data.refreshTokenExpiresAt || '');",
+                  "pm.collectionVariables.set('currentUsername', data.user ? data.user.username : '');",
+                  "pm.collectionVariables.set('currentUserId', data.user ? String(data.user.id || '') : '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates the bootstrap administrator and stores JWT tokens into collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Login Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', data.accessToken || '');",
+                  "pm.collectionVariables.set('accessTokenExpiresAt', data.accessTokenExpiresAt || '');",
+                  "pm.collectionVariables.set('refreshToken', data.refreshToken || '');",
+                  "pm.collectionVariables.set('refreshTokenExpiresAt', data.refreshTokenExpiresAt || '');",
+                  "pm.collectionVariables.set('currentUsername', data.user ? data.user.username : '');",
+                  "pm.collectionVariables.set('currentUserId', data.user ? String(data.user.id || '') : '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{currentUsername}}\",\n  \"password\": \"{{currentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates the currently selected user from variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Refresh returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', data.accessToken || '');",
+                  "pm.collectionVariables.set('accessTokenExpiresAt', data.accessTokenExpiresAt || '');",
+                  "pm.collectionVariables.set('refreshToken', data.refreshToken || '');",
+                  "pm.collectionVariables.set('refreshTokenExpiresAt', data.refreshTokenExpiresAt || '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Refreshes both JWT tokens and updates expiration variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns information about the currently authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "['accessToken', 'accessTokenExpiresAt', 'refreshToken', 'refreshTokenExpiresAt', 'currentLicenseId', 'currentLicenseKey', 'currentLicenseActive', 'currentLicenseBlocked', 'currentLicenseDeviceId', 'currentLicenseExpiresAt', 'currentTicketServerDate', 'currentTicketLifetimeSeconds', 'currentTicketActivatedAt', 'currentTicketExpiresAt', 'currentTicketUserId', 'currentTicketDeviceId', 'currentTicketBlocked', 'currentTicketSignature'].forEach(function (key) {",
+                  "    pm.collectionVariables.set(key, '');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Logs out the current user and clears saved token and ticket variables."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "Returns all users. Requires the admin access token."
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create user returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('currentUsername', data.username || '');",
+                  "pm.collectionVariables.set('currentPassword', pm.collectionVariables.get('newUserPassword'));",
+                  "pm.collectionVariables.set('currentUserId', String(data.id || ''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"fullName\": \"{{newUserFullName}}\",\n  \"role\": \"{{newUserRole}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "Creates a new user and updates currentUsername/currentPassword variables for follow-up login."
+          },
+          "response": []
+        },
+        {
+          "name": "Create License For Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create license returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('currentLicenseId', String(data.id || ''));",
+                  "pm.collectionVariables.set('currentLicenseKey', data.licenseKey || '');",
+                  "pm.collectionVariables.set('currentLicenseActive', String(data.active || false));",
+                  "pm.collectionVariables.set('currentLicenseBlocked', String(data.blocked || false));",
+                  "pm.collectionVariables.set('currentLicenseDeviceId', data.deviceId || '');",
+                  "pm.collectionVariables.set('currentLicenseExpiresAt', data.expiresAt || '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{currentUsername}}\",\n  \"validDays\": {{licenseValidDays}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/licenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "licenses"
+              ]
+            },
+            "description": "Creates a new activation code for the current user and stores its id/key into variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Renew Current License",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Renew license returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('currentLicenseId', String(data.id || ''));",
+                  "pm.collectionVariables.set('currentLicenseKey', data.licenseKey || '');",
+                  "pm.collectionVariables.set('currentLicenseActive', String(data.active || false));",
+                  "pm.collectionVariables.set('currentLicenseBlocked', String(data.blocked || false));",
+                  "pm.collectionVariables.set('currentLicenseDeviceId', data.deviceId || '');",
+                  "pm.collectionVariables.set('currentLicenseExpiresAt', data.expiresAt || '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"additionalDays\": {{renewAdditionalDays}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/licenses/{{currentLicenseId}}/renew",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "licenses",
+                "{{currentLicenseId}}",
+                "renew"
+              ]
+            },
+            "description": "Renews the current license by the configured number of days."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Licenses",
+      "item": [
+        {
+          "name": "My Licenses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('My licenses returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data.length > 0) {",
+                  "    const preferred = data.find(function (item) {",
+                  "        return item.licenseKey === pm.collectionVariables.get('currentLicenseKey');",
+                  "    }) || data[0];",
+                  "    pm.collectionVariables.set('currentLicenseId', String(preferred.id || ''));",
+                  "    pm.collectionVariables.set('currentLicenseKey', preferred.licenseKey || '');",
+                  "    pm.collectionVariables.set('currentLicenseActive', String(preferred.active || false));",
+                  "    pm.collectionVariables.set('currentLicenseBlocked', String(preferred.blocked || false));",
+                  "    pm.collectionVariables.set('currentLicenseDeviceId', preferred.deviceId || '');",
+                  "    pm.collectionVariables.set('currentLicenseExpiresAt', preferred.expiresAt || '');",
+                  "} else {",
+                  "    ['currentLicenseId', 'currentLicenseKey', 'currentLicenseActive', 'currentLicenseBlocked', 'currentLicenseDeviceId', 'currentLicenseExpiresAt'].forEach(function (key) {",
+                  "        pm.collectionVariables.set(key, '');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/licenses/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "licenses",
+                "me"
+              ]
+            },
+            "description": "Lists licenses of the authenticated user and stores one of them into variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Activate Current License",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Activate license returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('currentTicketServerDate', data.ticket ? data.ticket.serverDate : '');",
+                  "pm.collectionVariables.set('currentTicketLifetimeSeconds', data.ticket ? String(data.ticket.ticketLifetimeSeconds || '') : '');",
+                  "pm.collectionVariables.set('currentTicketActivatedAt', data.ticket ? data.ticket.licenseActivatedAt : '');",
+                  "pm.collectionVariables.set('currentTicketExpiresAt', data.ticket ? data.ticket.licenseExpiresAt : '');",
+                  "pm.collectionVariables.set('currentTicketUserId', data.ticket ? String(data.ticket.userId || '') : '');",
+                  "pm.collectionVariables.set('currentTicketDeviceId', data.ticket ? data.ticket.deviceId : '');",
+                  "pm.collectionVariables.set('currentTicketBlocked', data.ticket ? String(data.ticket.blocked || false) : '');",
+                  "pm.collectionVariables.set('currentTicketSignature', data.signature || '');",
+                  "pm.collectionVariables.set('currentLicenseActive', 'true');",
+                  "pm.collectionVariables.set('currentLicenseDeviceId', pm.collectionVariables.get('deviceId'));",
+                  "pm.collectionVariables.set('currentLicenseExpiresAt', data.ticket ? data.ticket.licenseExpiresAt : '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"licenseKey\": \"{{currentLicenseKey}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/licenses/activate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "licenses",
+                "activate"
+              ]
+            },
+            "description": "Activates the saved license key for the current device and stores the signed ticket into variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Current Ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Current ticket returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('currentTicketServerDate', data.ticket ? data.ticket.serverDate : '');",
+                  "pm.collectionVariables.set('currentTicketLifetimeSeconds', data.ticket ? String(data.ticket.ticketLifetimeSeconds || '') : '');",
+                  "pm.collectionVariables.set('currentTicketActivatedAt', data.ticket ? data.ticket.licenseActivatedAt : '');",
+                  "pm.collectionVariables.set('currentTicketExpiresAt', data.ticket ? data.ticket.licenseExpiresAt : '');",
+                  "pm.collectionVariables.set('currentTicketUserId', data.ticket ? String(data.ticket.userId || '') : '');",
+                  "pm.collectionVariables.set('currentTicketDeviceId', data.ticket ? data.ticket.deviceId : '');",
+                  "pm.collectionVariables.set('currentTicketBlocked', data.ticket ? String(data.ticket.blocked || false) : '');",
+                  "pm.collectionVariables.set('currentTicketSignature', data.signature || '');",
+                  "pm.collectionVariables.set('currentLicenseExpiresAt', data.ticket ? data.ticket.licenseExpiresAt : '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/licenses/current?deviceId={{deviceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "licenses",
+                "current"
+              ],
+              "query": [
+                {
+                  "key": "deviceId",
+                  "value": "{{deviceId}}"
+                }
+              ]
+            },
+            "description": "Fetches the current signed ticket for the selected device."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Client",
+      "item": [
+        {
+          "name": "Bootstrap",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/client/bootstrap",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "client",
+                "bootstrap"
+              ]
+            },
+            "description": "Shows the payload that the Win32 client can consume."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:8443"
+    },
+    {
+      "key": "adminUsername",
+      "value": "admin"
+    },
+    {
+      "key": "adminPassword",
+      "value": "Admin23358!"
+    },
+    {
+      "key": "newUsername",
+      "value": "student1"
+    },
+    {
+      "key": "newUserPassword",
+      "value": "Student23358!"
+    },
+    {
+      "key": "newUserFullName",
+      "value": "Student User"
+    },
+    {
+      "key": "newUserRole",
+      "value": "USER"
+    },
+    {
+      "key": "currentUsername",
+      "value": "admin"
+    },
+    {
+      "key": "currentPassword",
+      "value": "Admin23358!"
+    },
+    {
+      "key": "deviceId",
+      "value": "DEV-23358-DEMO"
+    },
+    {
+      "key": "licenseValidDays",
+      "value": "30"
+    },
+    {
+      "key": "renewAdditionalDays",
+      "value": "15"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "accessTokenExpiresAt",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "refreshTokenExpiresAt",
+      "value": ""
+    },
+    {
+      "key": "currentUserId",
+      "value": ""
+    },
+    {
+      "key": "currentLicenseId",
+      "value": ""
+    },
+    {
+      "key": "currentLicenseKey",
+      "value": ""
+    },
+    {
+      "key": "currentLicenseActive",
+      "value": ""
+    },
+    {
+      "key": "currentLicenseBlocked",
+      "value": ""
+    },
+    {
+      "key": "currentLicenseDeviceId",
+      "value": ""
+    },
+    {
+      "key": "currentLicenseExpiresAt",
+      "value": ""
+    },
+    {
+      "key": "currentTicketServerDate",
+      "value": ""
+    },
+    {
+      "key": "currentTicketLifetimeSeconds",
+      "value": ""
+    },
+    {
+      "key": "currentTicketActivatedAt",
+      "value": ""
+    },
+    {
+      "key": "currentTicketExpiresAt",
+      "value": ""
+    },
+    {
+      "key": "currentTicketUserId",
+      "value": ""
+    },
+    {
+      "key": "currentTicketDeviceId",
+      "value": ""
+    },
+    {
+      "key": "currentTicketBlocked",
+      "value": ""
+    },
+    {
+      "key": "currentTicketSignature",
+      "value": ""
+    }
+  ]
+}
