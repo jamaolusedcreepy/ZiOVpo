@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:infoguard;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+server:
+  ssl:
+    enabled: false
+
+app:
+  jwt:
+    issuer: http://localhost:8080
+    secret: test-secret-key-for-ci-and-tests-23358
+    access-ttl: PT15M
+    refresh-ttl: P7D
+  bootstrap-admin:
+    enabled: true
+    username: admin
+    password: Admin23358!
+    full-name: Test Administrator
+  license:
+    certificate-base: 23358
+    default-valid-days: 365
+    ticket-lifetime: PT15M
+    ticket-signature-secret: test-ticket-signature-secret-23358
