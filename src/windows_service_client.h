@@ -16,6 +16,24 @@ struct ActiveLicenseInfo {
     std::wstring expires_at;
 };
 
+struct AntivirusBasesInfoClient {
+    bool loaded = false;
+    std::wstring release_date;
+    unsigned long long record_count = 0;
+};
+
+struct AntivirusScanInfo {
+    bool malicious = false;
+    bool directory_scan = false;
+    unsigned long long scanned_object_count = 0;
+    unsigned long long infected_object_count = 0;
+    std::wstring target_path;
+    std::wstring detected_path;
+    std::wstring detected_threat_name;
+    std::wstring object_type;
+    std::wstring summary;
+};
+
 enum class RpcCallStatus {
     Success,
     NotFound,
@@ -36,6 +54,18 @@ struct LicenseQueryResult {
     std::wstring message;
 };
 
+struct BasesQueryResult {
+    RpcCallStatus status = RpcCallStatus::Failed;
+    AntivirusBasesInfoClient bases;
+    std::wstring message;
+};
+
+struct ScanQueryResult {
+    RpcCallStatus status = RpcCallStatus::Failed;
+    AntivirusScanInfo scan;
+    std::wstring message;
+};
+
 class WindowsServiceClient {
 public:
     enum class StartupDecision {
@@ -53,6 +83,9 @@ public:
     RpcCallStatus Logout(std::wstring* error_message) const;
     LicenseQueryResult GetActiveLicense() const;
     LicenseQueryResult ActivateProduct(const std::wstring& activation_code) const;
+    BasesQueryResult GetAntivirusBasesInfo() const;
+    ScanQueryResult ScanFile(const std::wstring& file_path) const;
+    ScanQueryResult ScanDirectory(const std::wstring& directory_path) const;
 
 private:
     enum class ServiceState {

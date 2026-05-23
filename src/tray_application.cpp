@@ -1,7 +1,11 @@
 #include "tray_application.h"
 
+#include <commdlg.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <windows.h>
+
+#include <array>
 
 namespace {
 
@@ -13,7 +17,8 @@ constexpr wchar_t kMenuExit[] = L"\u0412\u044b\u0445\u043e\u0434";
 constexpr wchar_t kLoginButtonText[] = L"Sign In";
 constexpr wchar_t kLogoutButtonText[] = L"Sign Out";
 constexpr wchar_t kActivateButtonText[] = L"Activate";
-constexpr wchar_t kAntivirusButtonText[] = L"Run Scan (Demo)";
+constexpr wchar_t kScanFileButtonText[] = L"Scan File";
+constexpr wchar_t kScanFolderButtonText[] = L"Scan Folder";
 
 void ApplyDefaultGuiFont(HWND control) {
     if (control != nullptr) {
@@ -32,6 +37,41 @@ std::wstring GetWindowTextValue(HWND control) {
         GetWindowTextW(control, value.data(), length + 1);
     }
     return value;
+}
+
+std::wstring SelectFilePath(HWND owner_window) {
+    std::array<wchar_t, MAX_PATH> file_buffer = {};
+    OPENFILENAMEW dialog = {};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = owner_window;
+    dialog.lpstrFilter = L"All files\0*.*\0";
+    dialog.lpstrFile = file_buffer.data();
+    dialog.nMaxFile = static_cast<DWORD>(file_buffer.size());
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    dialog.lpstrTitle = L"Select a file for antivirus scanning";
+
+    if (GetOpenFileNameW(&dialog) == FALSE) {
+        return {};
+    }
+
+    return file_buffer.data();
+}
+
+std::wstring SelectFolderPath(HWND owner_window) {
+    BROWSEINFOW browse = {};
+    browse.hwndOwner = owner_window;
+    browse.lpszTitle = L"Select a folder for antivirus scanning";
+    browse.ulFlags = BIF_RETURNONLYFSDIRS | BIF_USENEWUI | BIF_NEWDIALOGSTYLE;
+
+    PIDLIST_ABSOLUTE item_list = SHBrowseForFolderW(&browse);
+    if (item_list == nullptr) {
+        return {};
+    }
+
+    std::array<wchar_t, MAX_PATH> path_buffer = {};
+    const BOOL success = SHGetPathFromIDListW(item_list, path_buffer.data());
+    CoTaskMemFree(item_list);
+    return success == FALSE ? std::wstring{} : std::wstring(path_buffer.data());
 }
 
 }  // namespace
@@ -263,17 +303,31 @@ void TrayApplication::CreateControls() {
         instance_,
         nullptr);
 
-    antivirus_button_ = CreateWindowExW(
+    scan_file_button_ = CreateWindowExW(
         0,
         L"BUTTON",
-        kAntivirusButtonText,
+        kScanFileButtonText,
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
         320,
         344,
-        180,
+        120,
         28,
         window_,
-        nullptr,
+        reinterpret_cast<HMENU>(kCommandScanFile),
+        instance_,
+        nullptr);
+
+    scan_folder_button_ = CreateWindowExW(
+        0,
+        L"BUTTON",
+        kScanFolderButtonText,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+        456,
+        344,
+        120,
+        28,
+        window_,
+        reinterpret_cast<HMENU>(kCommandScanFolder),
         instance_,
         nullptr);
 
@@ -287,7 +341,8 @@ void TrayApplication::CreateControls() {
     ApplyDefaultGuiFont(activation_label_);
     ApplyDefaultGuiFont(activation_edit_);
     ApplyDefaultGuiFont(activate_button_);
-    ApplyDefaultGuiFont(antivirus_button_);
+    ApplyDefaultGuiFont(scan_file_button_);
+    ApplyDefaultGuiFont(scan_folder_button_);
 }
 
 bool TrayApplication::AddTrayIcon() {
@@ -374,7 +429,12 @@ void TrayApplication::UpdateStatusText() const {
         return;
     }
 
-    const std::wstring text = license_service_.BuildStatusText(state_snapshot_);
+    std::wstring text = license_service_.BuildStatusText(state_snapshot_);
+    if (!last_scan_summary_.empty()) {
+        text += L"\r\n\r\nLast scan result\r\n----------------\r\n";
+        text += last_scan_summary_;
+    }
+
     SetWindowTextW(status_label_, text.c_str());
 }
 
@@ -382,6 +442,7 @@ void TrayApplication::UpdateControlVisibility() const {
     const bool show_auth_controls = !state_snapshot_.authenticated;
     const bool show_activation_controls = state_snapshot_.authenticated && !state_snapshot_.has_license;
     const bool show_logout = state_snapshot_.authenticated;
+    const bool show_scan_controls = state_snapshot_.has_license;
     const bool antivirus_enabled = state_snapshot_.antivirus_unlocked;
 
     ShowWindow(username_label_, show_auth_controls ? SW_SHOW : SW_HIDE);
@@ -394,8 +455,10 @@ void TrayApplication::UpdateControlVisibility() const {
     ShowWindow(activation_label_, show_activation_controls ? SW_SHOW : SW_HIDE);
     ShowWindow(activation_edit_, show_activation_controls ? SW_SHOW : SW_HIDE);
     ShowWindow(activate_button_, show_activation_controls ? SW_SHOW : SW_HIDE);
-    ShowWindow(antivirus_button_, state_snapshot_.authenticated ? SW_SHOW : SW_HIDE);
-    EnableWindow(antivirus_button_, antivirus_enabled ? TRUE : FALSE);
+    ShowWindow(scan_file_button_, show_scan_controls ? SW_SHOW : SW_HIDE);
+    ShowWindow(scan_folder_button_, show_scan_controls ? SW_SHOW : SW_HIDE);
+    EnableWindow(scan_file_button_, antivirus_enabled ? TRUE : FALSE);
+    EnableWindow(scan_folder_button_, antivirus_enabled ? TRUE : FALSE);
 }
 
 void TrayApplication::LayoutControls(const int width, const int height) const {
@@ -418,7 +481,8 @@ void TrayApplication::LayoutControls(const int width, const int height) const {
 
     MoveWindow(activation_label_, 320, lower_top, 160, 20, TRUE);
     MoveWindow(activation_edit_, 320, lower_top + 24, 260, 24, TRUE);
-    MoveWindow(antivirus_button_, 320, lower_top + 84, 180, 28, TRUE);
+    MoveWindow(scan_file_button_, 320, lower_top + 84, 120, 28, TRUE);
+    MoveWindow(scan_folder_button_, 456, lower_top + 84, 120, 28, TRUE);
     MoveWindow(activate_button_, 320, lower_top + 122, 120, 30, TRUE);
 }
 
@@ -435,6 +499,7 @@ void TrayApplication::HandleLoginCommand() {
     }
 
     SetWindowTextW(password_edit_, L"");
+    last_scan_summary_.clear();
     RefreshUiState();
 }
 
@@ -450,6 +515,7 @@ void TrayApplication::HandleLogoutCommand() {
         return;
     }
 
+    last_scan_summary_.clear();
     RefreshUiState();
 }
 
@@ -464,7 +530,58 @@ void TrayApplication::HandleActivateCommand() {
     }
 
     SetWindowTextW(activation_edit_, L"");
+    last_scan_summary_.clear();
     RefreshUiState();
+}
+
+void TrayApplication::HandleScanFileCommand() {
+    const std::wstring file_path = SelectFilePath(window_);
+    if (file_path.empty()) {
+        return;
+    }
+
+    const ScanQueryResult result = license_service_.ScanFile(file_path);
+    if (result.status != RpcCallStatus::Success) {
+        MessageBoxW(
+            window_,
+            result.message.empty() ? L"File scan failed." : result.message.c_str(),
+            kWindowTitle,
+            MB_ICONERROR | MB_OK);
+        return;
+    }
+
+    last_scan_summary_ = result.scan.summary;
+    UpdateStatusText();
+    MessageBoxW(
+        window_,
+        result.scan.summary.c_str(),
+        result.scan.malicious ? L"Threat Detected" : L"File Scan Complete",
+        MB_OK | (result.scan.malicious ? MB_ICONWARNING : MB_ICONINFORMATION));
+}
+
+void TrayApplication::HandleScanFolderCommand() {
+    const std::wstring directory_path = SelectFolderPath(window_);
+    if (directory_path.empty()) {
+        return;
+    }
+
+    const ScanQueryResult result = license_service_.ScanDirectory(directory_path);
+    if (result.status != RpcCallStatus::Success) {
+        MessageBoxW(
+            window_,
+            result.message.empty() ? L"Directory scan failed." : result.message.c_str(),
+            kWindowTitle,
+            MB_ICONERROR | MB_OK);
+        return;
+    }
+
+    last_scan_summary_ = result.scan.summary;
+    UpdateStatusText();
+    MessageBoxW(
+        window_,
+        result.scan.summary.c_str(),
+        result.scan.malicious ? L"Threat Detected" : L"Directory Scan Complete",
+        MB_OK | (result.scan.malicious ? MB_ICONWARNING : MB_ICONINFORMATION));
 }
 
 void TrayApplication::HandleExitCommand() {
@@ -534,6 +651,14 @@ LRESULT TrayApplication::HandleMessage(UINT message, WPARAM w_param, LPARAM l_pa
 
         case kCommandLogout:
             HandleLogoutCommand();
+            return 0;
+
+        case kCommandScanFile:
+            HandleScanFileCommand();
+            return 0;
+
+        case kCommandScanFolder:
+            HandleScanFolderCommand();
             return 0;
 
         default:

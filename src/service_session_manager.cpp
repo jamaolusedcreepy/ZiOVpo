@@ -232,7 +232,109 @@ DWORD ServiceSessionManager::ActivateProduct(
         CopyLicenseInfoLocked(license_info);
     }
 
+    if (const DWORD load_result = EnsureBasesLoaded(error_message); load_result != ERROR_SUCCESS) {
+        return load_result;
+    }
+
     condition_variable_.notify_all();
+    error_message->clear();
+    return ERROR_SUCCESS;
+}
+
+DWORD ServiceSessionManager::GetAntivirusBasesInfo(
+    ServiceAntivirusBasesInfo* bases_info,
+    std::wstring* error_message) {
+    const DWORD load_result = EnsureBasesLoaded(error_message);
+    if (load_result != ERROR_SUCCESS) {
+        return load_result;
+    }
+
+    const AntivirusBasesInfo info = antivirus_engine_.GetBasesInfo();
+    bases_info->loaded = info.loaded;
+    bases_info->release_date = info.release_date;
+    bases_info->record_count = info.record_count;
+    error_message->clear();
+    return ERROR_SUCCESS;
+}
+
+DWORD ServiceSessionManager::ScanFile(
+    const std::wstring& file_path,
+    ServiceScanResultInfo* scan_result,
+    std::wstring* error_message) {
+    {
+        std::lock_guard<std::mutex> guard(mutex_);
+        if (!authenticated_ || !has_ticket_) {
+            *error_message = L"An active license ticket is required before antivirus scanning can start.";
+            return ERROR_NOT_FOUND;
+        }
+
+        if (ticket_.blocked) {
+            *error_message = L"The active license is blocked. Antivirus scanning is unavailable.";
+            return ERROR_ACCESS_DENIED;
+        }
+    }
+
+    const DWORD load_result = EnsureBasesLoaded(error_message);
+    if (load_result != ERROR_SUCCESS) {
+        return load_result;
+    }
+
+    ScanResultInfo engine_result;
+    const DWORD scan_status = antivirus_engine_.ScanFile(file_path, &engine_result, error_message);
+    if (scan_status != ERROR_SUCCESS) {
+        return scan_status;
+    }
+
+    scan_result->malicious = engine_result.malicious;
+    scan_result->directory_scan = engine_result.directory_scan;
+    scan_result->scanned_object_count = engine_result.scanned_object_count;
+    scan_result->infected_object_count = engine_result.infected_object_count;
+    scan_result->target_path = engine_result.target_path;
+    scan_result->detected_path = engine_result.detected_path;
+    scan_result->detected_threat_name = engine_result.detected_threat_name;
+    scan_result->object_type = engine_result.object_type;
+    scan_result->summary = engine_result.summary;
+    error_message->clear();
+    return ERROR_SUCCESS;
+}
+
+DWORD ServiceSessionManager::ScanDirectory(
+    const std::wstring& directory_path,
+    ServiceScanResultInfo* scan_result,
+    std::wstring* error_message) {
+    {
+        std::lock_guard<std::mutex> guard(mutex_);
+        if (!authenticated_ || !has_ticket_) {
+            *error_message = L"An active license ticket is required before antivirus scanning can start.";
+            return ERROR_NOT_FOUND;
+        }
+
+        if (ticket_.blocked) {
+            *error_message = L"The active license is blocked. Antivirus scanning is unavailable.";
+            return ERROR_ACCESS_DENIED;
+        }
+    }
+
+    const DWORD load_result = EnsureBasesLoaded(error_message);
+    if (load_result != ERROR_SUCCESS) {
+        return load_result;
+    }
+
+    ScanResultInfo engine_result;
+    const DWORD scan_status = antivirus_engine_.ScanDirectory(directory_path, &engine_result, error_message);
+    if (scan_status != ERROR_SUCCESS) {
+        return scan_status;
+    }
+
+    scan_result->malicious = engine_result.malicious;
+    scan_result->directory_scan = engine_result.directory_scan;
+    scan_result->scanned_object_count = engine_result.scanned_object_count;
+    scan_result->infected_object_count = engine_result.infected_object_count;
+    scan_result->target_path = engine_result.target_path;
+    scan_result->detected_path = engine_result.detected_path;
+    scan_result->detected_threat_name = engine_result.detected_threat_name;
+    scan_result->object_type = engine_result.object_type;
+    scan_result->summary = engine_result.summary;
     error_message->clear();
     return ERROR_SUCCESS;
 }
@@ -340,6 +442,8 @@ void ServiceSessionManager::WorkerLoop() {
                 has_ticket_ = true;
             }
 
+            std::wstring ignored_load_error;
+            EnsureBasesLoaded(&ignored_load_error);
             condition_variable_.notify_all();
         }
     }
@@ -354,6 +458,7 @@ void ServiceSessionManager::ClearAuthStateLocked() {
 void ServiceSessionManager::ClearTicketLocked() {
     ticket_ = BackendTicketInfo{};
     has_ticket_ = false;
+    antivirus_engine_.UnloadBases();
 }
 
 void ServiceSessionManager::CopyUserInfoLocked(ServiceAuthenticatedUserInfo* user_info) const {
@@ -436,7 +541,34 @@ DWORD ServiceSessionManager::RefreshCurrentLicenseState(
         has_ticket_ = true;
     }
 
+    if (const DWORD load_result = EnsureBasesLoaded(error_message); load_result != ERROR_SUCCESS) {
+        return load_result;
+    }
+
     condition_variable_.notify_all();
+    return ERROR_SUCCESS;
+}
+
+DWORD ServiceSessionManager::EnsureBasesLoaded(std::wstring* error_message) {
+    {
+        std::lock_guard<std::mutex> guard(mutex_);
+        if (!authenticated_ || !has_ticket_) {
+            *error_message = L"An active license ticket is required before antivirus bases can be used.";
+            return ERROR_NOT_FOUND;
+        }
+    }
+
+    const AntivirusBasesInfo info = antivirus_engine_.GetBasesInfo();
+    if (info.loaded && info.record_count > 0) {
+        error_message->clear();
+        return ERROR_SUCCESS;
+    }
+
+    if (!antivirus_engine_.LoadBases(error_message)) {
+        return ERROR_NOT_READY;
+    }
+
+    error_message->clear();
     return ERROR_SUCCESS;
 }
 

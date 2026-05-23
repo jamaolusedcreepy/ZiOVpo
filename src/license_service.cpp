@@ -32,9 +32,20 @@ ClientStateSnapshot LicenseService::RefreshSnapshot() const {
     snapshot.activated_at = license_result.license.activated_at;
     snapshot.expires_at = license_result.license.expires_at;
     snapshot.antivirus_unlocked = !snapshot.license_blocked;
+
+    const BasesQueryResult bases_result = service_client_.GetAntivirusBasesInfo();
+    if (bases_result.status == RpcCallStatus::Success) {
+        snapshot.bases_loaded = bases_result.bases.loaded;
+        snapshot.bases_record_count = bases_result.bases.record_count;
+        snapshot.bases_release_date = bases_result.bases.release_date;
+    }
+
+    snapshot.antivirus_unlocked = snapshot.antivirus_unlocked && snapshot.bases_loaded;
     snapshot.message = snapshot.license_blocked
         ? L"The active license is blocked. Antivirus functionality remains disabled."
-        : L"The product is activated. Antivirus functionality is unlocked.";
+        : (snapshot.bases_loaded
+               ? L"The product is activated. Antivirus bases are loaded and scanning is unlocked."
+               : L"The product is activated, but antivirus bases are not loaded yet.");
     return snapshot;
 }
 
@@ -48,6 +59,18 @@ RpcCallStatus LicenseService::Logout(std::wstring* error_message) const {
 
 LicenseQueryResult LicenseService::ActivateProduct(const std::wstring& activation_code) const {
     return service_client_.ActivateProduct(activation_code);
+}
+
+BasesQueryResult LicenseService::GetAntivirusBasesInfo() const {
+    return service_client_.GetAntivirusBasesInfo();
+}
+
+ScanQueryResult LicenseService::ScanFile(const std::wstring& file_path) const {
+    return service_client_.ScanFile(file_path);
+}
+
+ScanQueryResult LicenseService::ScanDirectory(const std::wstring& directory_path) const {
+    return service_client_.ScanDirectory(directory_path);
 }
 
 std::wstring LicenseService::BuildStatusText(const ClientStateSnapshot& snapshot) const {
@@ -89,6 +112,9 @@ std::wstring LicenseService::BuildStatusText(const ClientStateSnapshot& snapshot
            << L"Activated at: " << snapshot.activated_at << L"\r\n"
            << L"Expires at: " << snapshot.expires_at << L"\r\n"
            << L"Blocked: " << (snapshot.license_blocked ? L"yes" : L"no") << L"\r\n"
+           << L"Bases loaded: " << (snapshot.bases_loaded ? L"yes" : L"no") << L"\r\n"
+           << L"Bases release date: " << (snapshot.bases_release_date.empty() ? L"-" : snapshot.bases_release_date) << L"\r\n"
+           << L"Bases record count: " << snapshot.bases_record_count << L"\r\n"
            << L"Antivirus functionality: " << (snapshot.antivirus_unlocked ? L"unlocked" : L"blocked") << L"\r\n\r\n"
            << L"Current state\r\n"
            << L"-------------\r\n"

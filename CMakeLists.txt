@@ -111,6 +111,7 @@ add_executable(InfoGuardTrayApp WIN32
 infoguard_apply_common_target_settings(InfoGuardTrayApp)
 target_link_libraries(InfoGuardTrayApp PRIVATE
     advapi32
+    comdlg32
     shell32
     user32
     winhttp
@@ -118,6 +119,8 @@ target_link_libraries(InfoGuardTrayApp PRIVATE
 )
 
 add_executable(InfoGuardService
+    src/antivirus_engine.cpp
+    src/antivirus_engine.h
     src/backend_api_client.cpp
     src/backend_api_client.h
     src/infoguard_service_main.cpp
@@ -128,6 +131,7 @@ add_executable(InfoGuardService
 infoguard_apply_common_target_settings(InfoGuardService)
 target_link_libraries(InfoGuardService PRIVATE
     advapi32
+    bcrypt
     userenv
     wtsapi32
     winhttp

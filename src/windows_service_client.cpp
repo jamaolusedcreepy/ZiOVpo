@@ -224,6 +224,26 @@ void FreeRpcLicenseInfo(InfoGuardRpcLicenseInfo* license_info) {
     FreeRpcString(&license_info->expiresAt);
 }
 
+void FreeRpcAvBasesInfo(InfoGuardRpcAvBasesInfo* bases_info) {
+    if (bases_info == nullptr) {
+        return;
+    }
+
+    FreeRpcString(&bases_info->releaseDate);
+}
+
+void FreeRpcScanResult(InfoGuardRpcScanResult* scan_result) {
+    if (scan_result == nullptr) {
+        return;
+    }
+
+    FreeRpcString(&scan_result->targetPath);
+    FreeRpcString(&scan_result->detectedPath);
+    FreeRpcString(&scan_result->detectedThreatName);
+    FreeRpcString(&scan_result->objectType);
+    FreeRpcString(&scan_result->summary);
+}
+
 RpcCallStatus MapRpcStatus(const DWORD status) {
     switch (status) {
     case ERROR_SUCCESS:
@@ -337,6 +357,57 @@ DWORD CallActivateProductRpc(
     return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
 }
 
+DWORD CallGetAntivirusBasesInfoRpc(InfoGuardRpcAvBasesInfo* bases_info, wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcGetAntivirusBasesInfo(bases_info, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+DWORD CallScanFileRpc(
+    wchar_t* file_path,
+    InfoGuardRpcScanResult* scan_result,
+    wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcScanFile(file_path, scan_result, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
+DWORD CallScanDirectoryRpc(
+    wchar_t* directory_path,
+    InfoGuardRpcScanResult* scan_result,
+    wchar_t** error_message) {
+    DWORD exception_code = RPC_S_OK;
+    long status = ERROR_GEN_FAILURE;
+
+    RpcTryExcept {
+        status = InfoGuardRpcScanDirectory(directory_path, scan_result, error_message);
+    }
+    RpcExcept(1) {
+        exception_code = RPC_S_CALL_FAILED;
+    }
+    RpcEndExcept
+
+    return exception_code == RPC_S_OK ? static_cast<DWORD>(status) : exception_code;
+}
+
 std::wstring TakeRpcMessage(wchar_t** rpc_message) {
     std::wstring result;
     if (rpc_message != nullptr && *rpc_message != nullptr) {
@@ -358,6 +429,24 @@ void CopyLicenseInfo(const InfoGuardRpcLicenseInfo& rpc_license, ActiveLicenseIn
     license->device_id = rpc_license.deviceId == nullptr ? L"" : rpc_license.deviceId;
     license->activated_at = rpc_license.activatedAt == nullptr ? L"" : rpc_license.activatedAt;
     license->expires_at = rpc_license.expiresAt == nullptr ? L"" : rpc_license.expiresAt;
+}
+
+void CopyBasesInfo(const InfoGuardRpcAvBasesInfo& rpc_bases, AntivirusBasesInfoClient* bases) {
+    bases->loaded = rpc_bases.loaded != FALSE;
+    bases->release_date = rpc_bases.releaseDate == nullptr ? L"" : rpc_bases.releaseDate;
+    bases->record_count = static_cast<unsigned long long>(rpc_bases.recordCount);
+}
+
+void CopyScanInfo(const InfoGuardRpcScanResult& rpc_scan, AntivirusScanInfo* scan) {
+    scan->malicious = rpc_scan.malicious != FALSE;
+    scan->directory_scan = rpc_scan.directoryScan != FALSE;
+    scan->scanned_object_count = static_cast<unsigned long long>(rpc_scan.scannedObjectCount);
+    scan->infected_object_count = static_cast<unsigned long long>(rpc_scan.infectedObjectCount);
+    scan->target_path = rpc_scan.targetPath == nullptr ? L"" : rpc_scan.targetPath;
+    scan->detected_path = rpc_scan.detectedPath == nullptr ? L"" : rpc_scan.detectedPath;
+    scan->detected_threat_name = rpc_scan.detectedThreatName == nullptr ? L"" : rpc_scan.detectedThreatName;
+    scan->object_type = rpc_scan.objectType == nullptr ? L"" : rpc_scan.objectType;
+    scan->summary = rpc_scan.summary == nullptr ? L"" : rpc_scan.summary;
 }
 
 }  // namespace
@@ -653,5 +742,73 @@ LicenseQueryResult WindowsServiceClient::ActivateProduct(const std::wstring& act
     }
 
     FreeRpcLicenseInfo(&rpc_license);
+    return result;
+}
+
+BasesQueryResult WindowsServiceClient::GetAntivirusBasesInfo() const {
+    BasesQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
+    }
+
+    InfoGuardRpcAvBasesInfo rpc_bases = {};
+    wchar_t* rpc_message = nullptr;
+    const DWORD status = CallGetAntivirusBasesInfoRpc(&rpc_bases, &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyBasesInfo(rpc_bases, &result.bases);
+    }
+
+    FreeRpcAvBasesInfo(&rpc_bases);
+    return result;
+}
+
+ScanQueryResult WindowsServiceClient::ScanFile(const std::wstring& file_path) const {
+    ScanQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
+    }
+
+    InfoGuardRpcScanResult rpc_scan = {};
+    wchar_t* rpc_message = nullptr;
+    std::wstring mutable_path = file_path;
+    const DWORD status = CallScanFileRpc(mutable_path.data(), &rpc_scan, &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyScanInfo(rpc_scan, &result.scan);
+    }
+
+    FreeRpcScanResult(&rpc_scan);
+    return result;
+}
+
+ScanQueryResult WindowsServiceClient::ScanDirectory(const std::wstring& directory_path) const {
+    ScanQueryResult result;
+    ScopedRpcBinding rpc_binding;
+    if (!CreateRpcBinding(&result.message)) {
+        result.status = RpcCallStatus::Unavailable;
+        return result;
+    }
+
+    InfoGuardRpcScanResult rpc_scan = {};
+    wchar_t* rpc_message = nullptr;
+    std::wstring mutable_path = directory_path;
+    const DWORD status = CallScanDirectoryRpc(mutable_path.data(), &rpc_scan, &rpc_message);
+
+    result.status = MapRpcStatus(status);
+    result.message = TakeRpcMessage(&rpc_message);
+    if (status == ERROR_SUCCESS) {
+        CopyScanInfo(rpc_scan, &result.scan);
+    }
+
+    FreeRpcScanResult(&rpc_scan);
     return result;
 }

@@ -22,6 +22,26 @@ interface InfoGuardServiceRpc
         [string] wchar_t* expiresAt;
     } InfoGuardRpcLicenseInfo;
 
+    typedef struct _InfoGuardRpcAvBasesInfo
+    {
+        boolean loaded;
+        [string] wchar_t* releaseDate;
+        hyper recordCount;
+    } InfoGuardRpcAvBasesInfo;
+
+    typedef struct _InfoGuardRpcScanResult
+    {
+        boolean malicious;
+        boolean directoryScan;
+        hyper scannedObjectCount;
+        hyper infectedObjectCount;
+        [string] wchar_t* targetPath;
+        [string] wchar_t* detectedPath;
+        [string] wchar_t* detectedThreatName;
+        [string] wchar_t* objectType;
+        [string] wchar_t* summary;
+    } InfoGuardRpcScanResult;
+
     void InfoGuardRpcStopService(void);
 
     long InfoGuardRpcGetCurrentUser(
@@ -44,5 +64,19 @@ interface InfoGuardServiceRpc
     long InfoGuardRpcActivateProduct(
         [in, string] wchar_t* activationCode,
         [out] InfoGuardRpcLicenseInfo* licenseInfo,
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcGetAntivirusBasesInfo(
+        [out] InfoGuardRpcAvBasesInfo* basesInfo,
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcScanFile(
+        [in, string] wchar_t* filePath,
+        [out] InfoGuardRpcScanResult* scanResult,
+        [out, string] wchar_t** errorMessage);
+
+    long InfoGuardRpcScanDirectory(
+        [in, string] wchar_t* directoryPath,
+        [out] InfoGuardRpcScanResult* scanResult,
         [out, string] wchar_t** errorMessage);
 }

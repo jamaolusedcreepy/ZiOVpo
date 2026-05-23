@@ -12,6 +12,9 @@ struct ClientStateSnapshot {
     bool has_license = false;
     bool license_blocked = false;
     bool antivirus_unlocked = false;
+    bool bases_loaded = false;
+    unsigned long long bases_record_count = 0;
+    std::wstring bases_release_date;
     std::wstring device_id;
     std::wstring activated_at;
     std::wstring expires_at;
@@ -24,6 +27,9 @@ public:
     UserQueryResult Login(const std::wstring& username, const std::wstring& password) const;
     RpcCallStatus Logout(std::wstring* error_message) const;
     LicenseQueryResult ActivateProduct(const std::wstring& activation_code) const;
+    BasesQueryResult GetAntivirusBasesInfo() const;
+    ScanQueryResult ScanFile(const std::wstring& file_path) const;
+    ScanQueryResult ScanDirectory(const std::wstring& directory_path) const;
     std::wstring BuildStatusText(const ClientStateSnapshot& snapshot) const;
 
 private:

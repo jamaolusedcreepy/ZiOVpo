@@ -20,6 +20,8 @@ private:
     inline static constexpr UINT_PTR kCommandLogin = 1004;
     inline static constexpr UINT_PTR kCommandActivate = 1005;
     inline static constexpr UINT_PTR kCommandLogout = 1006;
+    inline static constexpr UINT_PTR kCommandScanFile = 1007;
+    inline static constexpr UINT_PTR kCommandScanFolder = 1008;
     inline static constexpr UINT_PTR kStateRefreshTimerId = 2001;
     inline static constexpr wchar_t kWindowClassName[] = L"InfoGuardTrayAppWindow";
 
@@ -40,6 +42,8 @@ private:
     void HandleLoginCommand();
     void HandleLogoutCommand();
     void HandleActivateCommand();
+    void HandleScanFileCommand();
+    void HandleScanFolderCommand();
     void HandleExitCommand();
     void RequestExit();
     LRESULT HandleMessage(UINT message, WPARAM w_param, LPARAM l_param);
@@ -56,7 +60,8 @@ private:
     HWND activation_label_ = nullptr;
     HWND activation_edit_ = nullptr;
     HWND activate_button_ = nullptr;
-    HWND antivirus_button_ = nullptr;
+    HWND scan_file_button_ = nullptr;
+    HWND scan_folder_button_ = nullptr;
     HICON icon_ = nullptr;
     UINT taskbar_created_message_ = 0;
     bool start_hidden_ = false;
@@ -64,4 +69,5 @@ private:
     bool exit_requested_ = false;
     LicenseService license_service_;
     ClientStateSnapshot state_snapshot_;
+    std::wstring last_scan_summary_;
 };

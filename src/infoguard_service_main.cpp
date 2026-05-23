@@ -114,6 +114,32 @@ void ResetRpcLicenseInfo(InfoGuardRpcLicenseInfo* license_info) {
     license_info->expiresAt = nullptr;
 }
 
+void ResetRpcAvBasesInfo(InfoGuardRpcAvBasesInfo* bases_info) {
+    if (bases_info == nullptr) {
+        return;
+    }
+
+    bases_info->loaded = FALSE;
+    bases_info->releaseDate = nullptr;
+    bases_info->recordCount = 0;
+}
+
+void ResetRpcScanResult(InfoGuardRpcScanResult* scan_result) {
+    if (scan_result == nullptr) {
+        return;
+    }
+
+    scan_result->malicious = FALSE;
+    scan_result->directoryScan = FALSE;
+    scan_result->scannedObjectCount = 0;
+    scan_result->infectedObjectCount = 0;
+    scan_result->targetPath = nullptr;
+    scan_result->detectedPath = nullptr;
+    scan_result->detectedThreatName = nullptr;
+    scan_result->objectType = nullptr;
+    scan_result->summary = nullptr;
+}
+
 bool GrantInteractiveUsersStartAccess(SC_HANDLE service, std::wstring* error_message) {
     DWORD required_size = 0;
     QueryServiceObjectSecurity(service, DACL_SECURITY_INFORMATION, nullptr, 0, &required_size);
@@ -536,6 +562,92 @@ public:
         return ERROR_SUCCESS;
     }
 
+    long RpcGetAntivirusBasesInfo(
+        InfoGuardRpcAvBasesInfo* bases_info,
+        wchar_t** error_message) {
+        ResetRpcAvBasesInfo(bases_info);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceAntivirusBasesInfo service_bases;
+        std::wstring message;
+        const DWORD result = session_manager_.GetAntivirusBasesInfo(&service_bases, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        bases_info->loaded = service_bases.loaded ? TRUE : FALSE;
+        bases_info->releaseDate = DuplicateRpcString(service_bases.release_date);
+        bases_info->recordCount = static_cast<hyper>(service_bases.record_count);
+        return ERROR_SUCCESS;
+    }
+
+    long RpcScanFile(
+        const std::wstring& file_path,
+        InfoGuardRpcScanResult* scan_result,
+        wchar_t** error_message) {
+        ResetRpcScanResult(scan_result);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceScanResultInfo service_result;
+        std::wstring message;
+        const DWORD result = session_manager_.ScanFile(file_path, &service_result, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        scan_result->malicious = service_result.malicious ? TRUE : FALSE;
+        scan_result->directoryScan = service_result.directory_scan ? TRUE : FALSE;
+        scan_result->scannedObjectCount = static_cast<hyper>(service_result.scanned_object_count);
+        scan_result->infectedObjectCount = static_cast<hyper>(service_result.infected_object_count);
+        scan_result->targetPath = DuplicateRpcString(service_result.target_path);
+        scan_result->detectedPath = DuplicateRpcString(service_result.detected_path);
+        scan_result->detectedThreatName = DuplicateRpcString(service_result.detected_threat_name);
+        scan_result->objectType = DuplicateRpcString(service_result.object_type);
+        scan_result->summary = DuplicateRpcString(service_result.summary);
+        return ERROR_SUCCESS;
+    }
+
+    long RpcScanDirectory(
+        const std::wstring& directory_path,
+        InfoGuardRpcScanResult* scan_result,
+        wchar_t** error_message) {
+        ResetRpcScanResult(scan_result);
+        if (error_message != nullptr) {
+            *error_message = nullptr;
+        }
+
+        ServiceScanResultInfo service_result;
+        std::wstring message;
+        const DWORD result = session_manager_.ScanDirectory(directory_path, &service_result, &message);
+        if (result != ERROR_SUCCESS) {
+            if (error_message != nullptr) {
+                *error_message = DuplicateRpcString(message);
+            }
+            return static_cast<long>(result);
+        }
+
+        scan_result->malicious = service_result.malicious ? TRUE : FALSE;
+        scan_result->directoryScan = service_result.directory_scan ? TRUE : FALSE;
+        scan_result->scannedObjectCount = static_cast<hyper>(service_result.scanned_object_count);
+        scan_result->infectedObjectCount = static_cast<hyper>(service_result.infected_object_count);
+        scan_result->targetPath = DuplicateRpcString(service_result.target_path);
+        scan_result->detectedPath = DuplicateRpcString(service_result.detected_path);
+        scan_result->detectedThreatName = DuplicateRpcString(service_result.detected_threat_name);
+        scan_result->objectType = DuplicateRpcString(service_result.object_type);
+        scan_result->summary = DuplicateRpcString(service_result.summary);
+        return ERROR_SUCCESS;
+    }
+
 private:
     DWORD HandleServiceControl(DWORD control, DWORD event_type, LPVOID event_data) {
         switch (control) {
@@ -790,6 +902,32 @@ long InfoGuardRpcActivateProduct(
     return ServiceHost::Instance().RpcActivateProduct(
         activationCode == nullptr ? L"" : activationCode,
         licenseInfo,
+        errorMessage);
+}
+
+long InfoGuardRpcGetAntivirusBasesInfo(
+    InfoGuardRpcAvBasesInfo* basesInfo,
+    wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcGetAntivirusBasesInfo(basesInfo, errorMessage);
+}
+
+long InfoGuardRpcScanFile(
+    wchar_t* filePath,
+    InfoGuardRpcScanResult* scanResult,
+    wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcScanFile(
+        filePath == nullptr ? L"" : filePath,
+        scanResult,
+        errorMessage);
+}
+
+long InfoGuardRpcScanDirectory(
+    wchar_t* directoryPath,
+    InfoGuardRpcScanResult* scanResult,
+    wchar_t** errorMessage) {
+    return ServiceHost::Instance().RpcScanDirectory(
+        directoryPath == nullptr ? L"" : directoryPath,
+        scanResult,
         errorMessage);
 }
 

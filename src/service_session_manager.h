@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 
+#include "antivirus_engine.h"
 #include "backend_api_client.h"
 
 struct ServiceAuthenticatedUserInfo {
@@ -21,6 +22,24 @@ struct ServiceActiveLicenseInfo {
     std::wstring device_id;
     std::wstring activated_at;
     std::wstring expires_at;
+};
+
+struct ServiceAntivirusBasesInfo {
+    bool loaded = false;
+    std::wstring release_date;
+    unsigned long long record_count = 0;
+};
+
+struct ServiceScanResultInfo {
+    bool malicious = false;
+    bool directory_scan = false;
+    unsigned long long scanned_object_count = 0;
+    unsigned long long infected_object_count = 0;
+    std::wstring target_path;
+    std::wstring detected_path;
+    std::wstring detected_threat_name;
+    std::wstring object_type;
+    std::wstring summary;
 };
 
 class ServiceSessionManager {
@@ -40,6 +59,15 @@ public:
     DWORD Logout(std::wstring* error_message);
     DWORD GetActiveLicense(ServiceActiveLicenseInfo* license_info, std::wstring* error_message);
     DWORD ActivateProduct(const std::wstring& activation_code, ServiceActiveLicenseInfo* license_info, std::wstring* error_message);
+    DWORD GetAntivirusBasesInfo(ServiceAntivirusBasesInfo* bases_info, std::wstring* error_message);
+    DWORD ScanFile(
+        const std::wstring& file_path,
+        ServiceScanResultInfo* scan_result,
+        std::wstring* error_message);
+    DWORD ScanDirectory(
+        const std::wstring& directory_path,
+        ServiceScanResultInfo* scan_result,
+        std::wstring* error_message);
 
 private:
     void WorkerLoop();
@@ -50,8 +78,10 @@ private:
     unsigned long long ComputeTokenRefreshDueLocked() const;
     unsigned long long ComputeTicketRefreshDueLocked() const;
     DWORD RefreshCurrentLicenseState(bool allow_license_missing, std::wstring* error_message);
+    DWORD EnsureBasesLoaded(std::wstring* error_message);
     std::wstring GetDeviceId() const;
 
+    AntivirusEngine antivirus_engine_;
     BackendApiClient backend_api_client_;
     std::wstring device_id_;
     std::mutex mutex_;

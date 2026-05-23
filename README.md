@@ -30,6 +30,9 @@ Repository with two parts for the assignment:
 - product activation form backed by the Windows service
 - periodic license-state polling through the Windows service
 - antivirus functionality is blocked until sign-in and activation succeed
+- displays antivirus base release date and record count
+- can scan a selected file through the Windows service
+- can scan a selected directory through the Windows service
 
 ## Windows service features
 
@@ -43,6 +46,10 @@ Repository with two parts for the assignment:
 - stores the active license ticket only in memory
 - refreshes the active license ticket based on ticket lifetime and expiration
 - exposes RPC methods for current user, sign-in, sign-out, current license, activation, and service stop
+- loads in-memory antivirus bases after a valid license ticket appears
+- keeps antivirus signatures in a `std::map` keyed by the first 8 bytes of a signature
+- verifies a signature hash and a record integrity signature before reporting a detection
+- scans individual files and directories through RPC without exposing JWTs or tickets to the GUI
 - terminates all launched tray clients when the service stops
 
 ## Server features
@@ -127,6 +134,21 @@ Important behavior:
 9. After activation, the main window should show the license expiration time and antivirus functionality should switch to `unlocked`
 10. Leave the app open for a while or reopen the main window to verify that state is refreshed through the service timer
 
+## Verify the 2.4 flow
+
+1. Complete the 2.3 flow until the product is activated
+2. Restart the Windows service if needed so the current `InfoGuardService.exe` build is active
+3. Open the tray window and verify that it shows:
+   - antivirus bases release date
+   - antivirus bases record count
+4. Click `Scan File` and select one of the demo files:
+   - clean sample: [samples/antivirus/clean/clean_script.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/clean/clean_script.ps1>)
+   - infected PowerShell sample: [samples/antivirus/infected/demo_malicious.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/infected/demo_malicious.ps1>)
+   - infected PE-like sample: [samples/antivirus/infected/demo_malicious_pe.exe](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/infected/demo_malicious_pe.exe>)
+5. Verify that the clean sample reports no threats and the infected samples report a threat name
+6. Click `Scan Folder` and select [samples/antivirus](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus>)
+7. Verify that the directory scan reports the scanned-file count, infected-file count, and sample infected paths
+
 ## Build the server
 
 ```powershell
@@ -162,6 +184,9 @@ Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [ser
 15. Activation form is shown while no ticket is available: `TrayApplication::UpdateControlVisibility`
 16. Antivirus functionality unlocks after a valid ticket is present: `LicenseService::RefreshSnapshot`
 17. License state is polled periodically: `WM_TIMER` + `RefreshUiState`
+18. Antivirus bases release date and record count are shown after activation: `LicenseService::BuildStatusText`
+19. File scan is available from the main window: `TrayApplication::HandleScanFileCommand`
+20. Directory scan is available from the main window: `TrayApplication::HandleScanFolderCommand`
 
 ## Windows service requirement checklist
 
@@ -173,3 +198,8 @@ Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [ser
 6. Keep tokens and tickets only in memory: `ServiceSessionManager`
 7. Refresh JWT and ticket according to their lifetimes: `ServiceSessionManager::WorkerLoop`
 8. Stop all launched tray clients on service shutdown: `TerminateAllChildProcesses`
+9. Load antivirus bases after activation: `ServiceSessionManager::EnsureBasesLoaded`
+10. Keep AV bases in a `std::map` keyed by signature prefix: `AntivirusEngine`
+11. Scan a file through the engine and expose it over RPC: `AntivirusEngine::ScanFile` + `InfoGuardRpcScanFile`
+12. Scan a directory through the engine and expose it over RPC: `AntivirusEngine::ScanDirectory` + `InfoGuardRpcScanDirectory`
+13. Expose antivirus base information over RPC: `InfoGuardRpcGetAntivirusBasesInfo`
