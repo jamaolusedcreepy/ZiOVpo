@@ -942,22 +942,27 @@ int wmain(const int argc, wchar_t* argv[]) {
 
     if (argc > 1) {
         const std::wstring command = argv[1];
+        const bool silent = command == L"--install-silent" || command == L"--uninstall-silent";
 
-        if (command == L"--install") {
+        if (command == L"--install" || command == L"--install-silent") {
             if (ServiceHost::Instance().InstallService(&error_message)) {
                 return 0;
             }
 
-            MessageBoxW(nullptr, error_message.c_str(), L"InfoGuard Service", MB_ICONERROR | MB_OK);
+            if (!silent) {
+                MessageBoxW(nullptr, error_message.c_str(), L"InfoGuard Service", MB_ICONERROR | MB_OK);
+            }
             return 1;
         }
 
-        if (command == L"--uninstall") {
+        if (command == L"--uninstall" || command == L"--uninstall-silent") {
             if (ServiceHost::Instance().UninstallService(&error_message)) {
                 return 0;
             }
 
-            MessageBoxW(nullptr, error_message.c_str(), L"InfoGuard Service", MB_ICONERROR | MB_OK);
+            if (!silent) {
+                MessageBoxW(nullptr, error_message.c_str(), L"InfoGuard Service", MB_ICONERROR | MB_OK);
+            }
             return 1;
         }
     }

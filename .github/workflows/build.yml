@@ -90,6 +90,23 @@ jobs:
         if: matrix.component == 'client'
         run: cmake --build build --config Release --target InfoGuardTrayApp InfoGuardService
 
+      - name: Install Inno Setup
+        if: matrix.component == 'client'
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        if: matrix.component == 'client'
+        run: |
+          $isccCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            throw "ISCC.exe was not found after installing Inno Setup."
+          }
+          & $iscc "installer\InfoGuardInstaller.iss"
+
       - name: Upload Windows artifacts
         if: matrix.component == 'client'
         uses: actions/upload-artifact@v4
@@ -98,4 +115,12 @@ jobs:
           path: |
             build/Release/InfoGuardTrayApp.exe
             build/Release/InfoGuardService.exe
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        if: matrix.component == 'client'
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfoGuard-windows-installer
+          path: build/installer/InfoGuardAntivirusSetup.exe
           if-no-files-found: error

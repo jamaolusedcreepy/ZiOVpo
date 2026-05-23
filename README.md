@@ -11,6 +11,7 @@
 - `src/`, `rpc/` и `CMakeLists.txt`: Win32-клиент + Windows-служба
 - `server/`: Java backend
 - `.github/workflows/build.yml`: CI для обеих частей
+- `installer/`: Inno Setup-скрипт для сборки установщика Windows
 
 ## Возможности клиента
 
@@ -103,6 +104,30 @@ INFOGUARD_AV_UPDATE_INTERVAL_SECONDS=30
 `INFOGUARD_API_INSECURE_TLS=1` удобно для локальной разработки, потому что Windows-служба работает от системной учётной записи и обращается к локальному self-signed HTTPS endpoint.
 `INFOGUARD_AV_UPDATE_INTERVAL_SECONDS` переопределяет стандартный интервал обновления. По умолчанию служба проверяет новые базы каждые `30` секунд.
 
+Важно для задания 2.6: Windows-бинарники собираются со статически подключённым MSVC runtime, поэтому отдельный пакет VC++ Redistributable для запуска клиента и службы не требуется. Инсталлятор устанавливает только собственные артефакты приложения и использует встроенные компоненты Windows.
+
+## Сборка инсталлятора
+
+Локально инсталлятор собирается через Inno Setup 6 после сборки `Release`-бинарников:
+
+```powershell
+cmake -S . -B build -A x64
+cmake --build build --config Release --target InfoGuardTrayApp InfoGuardService
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\InfoGuardInstaller.iss"
+```
+
+Если Inno Setup был установлен через `winget` только для текущего пользователя, вместо пути из `Program Files (x86)` может использоваться:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "installer\InfoGuardInstaller.iss"
+```
+
+Готовый инсталлятор будет находиться здесь:
+
+```text
+build\installer\InfoGuardAntivirusSetup.exe
+```
+
 ## Установка и проверка Windows-службы
 
 Устанавливать службу нужно из PowerShell с правами администратора:
@@ -174,6 +199,17 @@ Start-Service InfoGuardService
 9. После планового обновления этот же файл должен детектироваться как `Demo.Update.PowerShell.23358`
 10. Для проверки восстановления остановить службу, повредить `build\Release\avbases\antivirus-bases.active.bin`, затем снова запустить службу и убедиться, что она восстанавливает базы из резервной копии или заново создаёт встроенные базы по умолчанию
 
+## Проверка сценария 2.6
+
+1. Собрать `InfoGuardTrayApp.exe`, `InfoGuardService.exe` и `build\installer\InfoGuardAntivirusSetup.exe`
+2. Запустить инсталлятор от имени администратора
+3. Убедиться, что в каталог установки скопированы оба исполняемых файла приложения
+4. Убедиться, что служба `InfoGuardService` зарегистрирована с типом запуска `Automatic`
+5. После установки проверить, что служба запущена, а клиент появился в пользовательской сессии
+6. Открыть `Apps & features` или штатный деинсталлятор InfoGuard и удалить приложение
+7. Убедиться, что инсталлятор останавливает процессы `InfoGuardService.exe` и `InfoGuardTrayApp.exe`, удаляет службу из SCM и удаляет каталог установки вместе с `avbases`
+8. В GitHub Actions убедиться, что workflow публикует артефакт `InfoGuard-windows-installer`
+
 ## Сборка сервера
 
 ```powershell
@@ -233,3 +269,5 @@ server\target\server-0.0.1-SNAPSHOT.jar
 15. Восстановление активных баз из backup/default при запуске: `AntivirusEngine::LoadBasesFromStorage`
 16. Пропуск записей с неверными подписями без потери остальных записей пакета: `ParsePackageBytes`
 17. Периодическая загрузка обновлённых баз с backend: `ServiceSessionManager::WorkerLoop` + `BackendApiClient::DownloadAntivirusBasesPackage`
+18. Инсталлятор регистрирует службу на автозапуск при загрузке ОС: `installer/InfoGuardInstaller.iss` + `InfoGuardService.exe --install-silent`
+19. Деинсталлятор останавливает и удаляет службу, а также удаляет рабочий каталог `avbases`: `installer/InfoGuardInstaller.iss`
