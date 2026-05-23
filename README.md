@@ -1,98 +1,98 @@
 # InfoGuard Client + Service + Server
 
-Repository with two parts for the assignment:
+Репозиторий с тремя частями учебного проекта:
 
-- Windows client on pure Win32 API
-- Windows service on pure Win32 API + Windows RPC over ALPC
-- Java backend on Spring Boot with PostgreSQL, JWT authentication, role-based authorization, HTTPS, and user-license binding
+- Windows-клиент на чистом Win32 API
+- Windows-служба на чистом Win32 API + Windows RPC over ALPC
+- Java backend на Spring Boot с PostgreSQL, JWT-аутентификацией, ролевой авторизацией, HTTPS и привязкой лицензии к пользователю
 
-## Repository layout
+## Структура репозитория
 
-- `src/`, `rpc/`, and `CMakeLists.txt`: Win32 client + Windows service
+- `src/`, `rpc/` и `CMakeLists.txt`: Win32-клиент + Windows-служба
 - `server/`: Java backend
-- `.github/workflows/build.yml`: CI for both parts
+- `.github/workflows/build.yml`: CI для обеих частей
 
-## Client features
+## Возможности клиента
 
-- tray icon on startup
-- left-click on tray icon opens the main window
-- right-click on tray icon opens a context menu with `Open` and `Exit`
-- tray icon is restored after Explorer/taskbar recreation
-- hidden startup mode via `--hidden`
-- closing the main window hides it instead of exiting
-- main menu `File -> Exit`
-- single-instance launch guard per Windows user via a named mutex
-- client checks the Windows service state on startup
-- when the service is stopped, the client starts it, waits for `Running`, and exits
-- the client continues to run only when launched by the Windows service
-- tray `Exit` and main menu `File -> Exit` stop the Windows service over Windows RPC / ALPC
-- authentication form backed by the Windows service
-- product activation form backed by the Windows service
-- periodic license-state polling through the Windows service
-- antivirus functionality is blocked until sign-in and activation succeed
-- displays antivirus base release date and record count
-- can scan a selected file through the Windows service
-- can scan a selected directory through the Windows service
+- добавляет иконку в трей при запуске
+- левый клик по иконке в трее открывает главное окно
+- правый клик по иконке в трее открывает контекстное меню с пунктами `Open` и `Exit`
+- иконка в трее восстанавливается после пересоздания Explorer/панели задач
+- поддерживается скрытый запуск через `--hidden`
+- закрытие главного окна скрывает его вместо завершения приложения
+- главное меню содержит `File -> Exit`
+- защита от второго запуска для одного пользователя Windows через именованный mutex
+- клиент проверяет состояние Windows-службы при запуске
+- если служба остановлена, клиент запускает её, дожидается состояния `Running` и завершает свою работу
+- клиент продолжает работать только в том случае, если запущен Windows-службой
+- пункт `Exit` в трее и `File -> Exit` в главном меню останавливают Windows-службу через Windows RPC / ALPC
+- форма аутентификации работает через Windows-службу
+- форма активации продукта работает через Windows-службу
+- состояние лицензии периодически опрашивается через Windows-службу
+- функциональность антивируса заблокирована до успешного входа и активации
+- отображаются дата выпуска антивирусных баз и количество записей
+- можно запустить сканирование выбранного файла через Windows-службу
+- можно запустить сканирование выбранной директории через Windows-службу
 
-## Windows service features
+## Возможности Windows-службы
 
-- Windows service executable: `InfoGuardService.exe`
-- launches `InfoGuardTrayApp.exe --hidden` in every user terminal session except session `0`
-- tracks new logons and reconnect/unlock events through `SERVICE_CONTROL_SESSIONCHANGE`
-- ignores SCM `Stop` and `Shutdown` controls
-- hosts a Windows RPC server over `ncalrpc` (ALPC)
-- stores JWT access/refresh tokens only in memory
-- refreshes JWT access/refresh tokens based on their expiration times
-- stores the active license ticket only in memory
-- refreshes the active license ticket based on ticket lifetime and expiration
-- exposes RPC methods for current user, sign-in, sign-out, current license, activation, and service stop
-- stores antivirus bases on disk in a compact signed binary format
-- loads antivirus bases from disk when the service starts
-- restores antivirus bases from a backup copy when the active manifest is invalid
-- falls back to the bundled default bases when no healthy active or backup copy exists
-- keeps antivirus signatures in a `std::map` keyed by the first 8 bytes of a signature
-- verifies a signature hash and a record integrity signature before reporting a detection
-- scans individual files and directories through RPC without exposing JWTs or tickets to the GUI
-- periodically downloads updated antivirus bases from the Java backend over HTTPS
-- terminates all launched tray clients when the service stops
+- исполняемый файл службы: `InfoGuardService.exe`
+- запускает `InfoGuardTrayApp.exe --hidden` во всех пользовательских терминальных сессиях, кроме сессии `0`
+- отслеживает новые входы в систему, переподключения и разблокировки через `SERVICE_CONTROL_SESSIONCHANGE`
+- игнорирует команды SCM `Stop` и `Shutdown`
+- поднимает сервер Windows RPC поверх `ncalrpc` (ALPC)
+- хранит JWT access/refresh токены только в оперативной памяти
+- обновляет JWT access/refresh токены с учётом сроков их действия
+- хранит активный лицензионный тикет только в оперативной памяти
+- обновляет активный лицензионный тикет на основе времени жизни тикета и срока действия лицензии
+- предоставляет RPC-методы для получения текущего пользователя, входа, выхода, активной лицензии, активации продукта и остановки службы
+- хранит антивирусные базы на диске в компактном подписанном бинарном формате
+- загружает антивирусные базы с диска при запуске службы
+- восстанавливает антивирусные базы из резервной копии, если активный манифест повреждён
+- возвращается к встроенным базам по умолчанию, если нет ни рабочей активной копии, ни резервной копии
+- хранит антивирусные сигнатуры в `std::map`, где ключом являются первые 8 байтов сигнатуры
+- проверяет хеш сигнатуры и подпись целостности записи перед фиксацией обнаружения
+- сканирует отдельные файлы и директории через RPC, не передавая JWT или тикеты в GUI
+- периодически загружает обновлённые антивирусные базы с Java backend по HTTPS
+- завершает все запущенные клиентские процессы при остановке службы
 
-## Server features
+## Возможности сервера
 
-- PostgreSQL integration via Spring Data JPA + Flyway
-- authentication with JWT access and refresh tokens
-- authorization with `ADMIN` and `USER` roles
-- HTTPS with a development certificate whose serial number is `23358`
-- seeded administrator account on first launch
-- user creation API and license creation API
-- license activation, current-ticket check, and renewal flows
-- signed `TicketResponse` payload for the Windows service
+- интеграция с PostgreSQL через Spring Data JPA + Flyway
+- аутентификация на основе JWT access и refresh токенов
+- авторизация с ролями `ADMIN` и `USER`
+- HTTPS с dev-сертификатом, у которого серийный номер `23358`
+- автоматическое создание администратора при первом запуске
+- API для создания пользователей и лицензий
+- сценарии активации лицензии, проверки текущего тикета и продления лицензии
+- подписанный `TicketResponse` для Windows-службы
 
-## Build the Windows binaries
+## Сборка Windows-бинарников
 
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release --target InfoGuardTrayApp InfoGuardService
 ```
 
-Client executable:
+Исполняемый файл клиента:
 
 ```text
 build\Release\InfoGuardTrayApp.exe
 ```
 
-Service executable:
+Исполняемый файл службы:
 
 ```text
 build\Release\InfoGuardService.exe
 ```
 
-Hidden startup mode:
+Скрытый режим запуска:
 
 ```powershell
 .\build\Release\InfoGuardTrayApp.exe --hidden
 ```
 
-Service-to-server integration uses these optional environment variables:
+Для интеграции службы с сервером можно использовать такие необязательные переменные окружения:
 
 ```text
 INFOGUARD_API_URL=https://localhost:8443
@@ -100,81 +100,81 @@ INFOGUARD_API_INSECURE_TLS=1
 INFOGUARD_AV_UPDATE_INTERVAL_SECONDS=30
 ```
 
-`INFOGUARD_API_INSECURE_TLS=1` is convenient for local development because the Windows service runs under a system account and talks to the local self-signed HTTPS endpoint.
-`INFOGUARD_AV_UPDATE_INTERVAL_SECONDS` overrides the default update interval. By default the service checks for new bases every `30` seconds.
+`INFOGUARD_API_INSECURE_TLS=1` удобно для локальной разработки, потому что Windows-служба работает от системной учётной записи и обращается к локальному self-signed HTTPS endpoint.
+`INFOGUARD_AV_UPDATE_INTERVAL_SECONDS` переопределяет стандартный интервал обновления. По умолчанию служба проверяет новые базы каждые `30` секунд.
 
-## Install and verify the Windows service
+## Установка и проверка Windows-службы
 
-Service installation must be done from an elevated PowerShell:
+Устанавливать службу нужно из PowerShell с правами администратора:
 
 ```powershell
 .\build\Release\InfoGuardService.exe --install
 Start-Service InfoGuardService
 ```
 
-Recommended verification flow for assignment 2.2:
+Рекомендуемый сценарий проверки задания 2.2:
 
-1. Build `InfoGuardService.exe` and `InfoGuardTrayApp.exe`
-2. Install the service from elevated PowerShell
-3. Start the service and verify that the tray client appears in the current user session without showing its main window
-4. Log in with another Windows user session if available and verify that the tray client appears there as well
-5. Stop the service from the tray client menu `Exit` or from the main window `File -> Exit`
-6. Verify that the tray client disappears because the service terminates all launched GUI processes
+1. Собрать `InfoGuardService.exe` и `InfoGuardTrayApp.exe`
+2. Установить службу из elevated PowerShell
+3. Запустить службу и убедиться, что клиент в трее появился в текущей пользовательской сессии без показа главного окна
+4. Если есть возможность, войти под другим пользователем Windows и убедиться, что там тоже появился клиент в трее
+5. Остановить службу через `Exit` в меню клиента или через `File -> Exit` в главном окне
+6. Убедиться, что иконка клиента исчезает, потому что служба завершает все запущенные GUI-процессы
 
-Important behavior:
+Важное поведение:
 
-- launching `InfoGuardTrayApp.exe` manually while the service is stopped should start the service, wait for `Running`, and then exit
-- launching `InfoGuardTrayApp.exe` manually while the service is already running should exit because its parent process is not the Windows service
-- if you update from an older build, reinstall the service so the new security settings for interactive users are applied
+- ручной запуск `InfoGuardTrayApp.exe`, когда служба остановлена, должен запустить службу, дождаться состояния `Running` и завершиться
+- ручной запуск `InfoGuardTrayApp.exe`, когда служба уже работает, должен завершиться, потому что родительским процессом не является Windows-служба
+- если обновляешься с более старой сборки, переустанови службу, чтобы применились новые настройки безопасности для интерактивных пользователей
 
-## Verify the 2.3 flow
+## Проверка сценария 2.3
 
-1. Start PostgreSQL and the Java backend on `https://localhost:8443`
-2. Build `InfoGuardTrayApp.exe` and `InfoGuardService.exe`
-3. Install or restart the Windows service so it uses the current build
-4. Start the Windows service and open the tray window
-5. The main window should show the sign-in form when no user is authenticated
-6. Sign in with a server user, for example `admin / Admin23358!`
-7. If no active license ticket exists, the activation form should remain visible and antivirus functionality should stay blocked
-8. Activate a product code for the current user
-9. After activation, the main window should show the license expiration time and antivirus functionality should switch to `unlocked`
-10. Leave the app open for a while or reopen the main window to verify that state is refreshed through the service timer
+1. Запустить PostgreSQL и Java backend на `https://localhost:8443`
+2. Собрать `InfoGuardTrayApp.exe` и `InfoGuardService.exe`
+3. Установить или перезапустить Windows-службу, чтобы она использовала текущую сборку
+4. Запустить Windows-службу и открыть окно клиента из трея
+5. В главном окне должна появиться форма входа, если пользователь ещё не аутентифицирован
+6. Выполнить вход под серверным пользователем, например `admin / Admin23358!`
+7. Если активного лицензионного тикета нет, форма активации должна остаться видимой, а функциональность антивируса должна быть заблокирована
+8. Активировать код продукта для текущего пользователя
+9. После активации в главном окне должен появиться срок действия лицензии, а функциональность антивируса должна перейти в состояние `unlocked`
+10. Оставить приложение открытым на некоторое время или заново открыть главное окно, чтобы убедиться, что состояние обновляется таймером службы
 
-## Verify the 2.4 flow
+## Проверка сценария 2.4
 
-1. Complete the 2.3 flow until the product is activated
-2. Restart the Windows service if needed so the current `InfoGuardService.exe` build is active
-3. Open the tray window and verify that it shows:
-   - antivirus bases release date
-   - antivirus bases record count
-4. Click `Scan File` and select one of the demo files:
-   - clean sample: [samples/antivirus/clean/clean_script.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/clean/clean_script.ps1>)
-   - infected PowerShell sample: [samples/antivirus/infected/demo_malicious.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/infected/demo_malicious.ps1>)
-   - infected PE-like sample: [samples/antivirus/infected/demo_malicious_pe.exe](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/infected/demo_malicious_pe.exe>)
-5. Verify that the clean sample reports no threats and the infected samples report a threat name
-6. Click `Scan Folder` and select [samples/antivirus](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus>)
-7. Verify that the directory scan reports the scanned-file count, infected-file count, and sample infected paths
+1. Пройти сценарий 2.3 до успешной активации продукта
+2. При необходимости перезапустить Windows-службу, чтобы использовалась актуальная сборка `InfoGuardService.exe`
+3. Открыть окно клиента из трея и убедиться, что оно показывает:
+   - дату выпуска антивирусных баз
+   - количество записей в антивирусных базах
+4. Нажать `Scan File` и выбрать один из demo-файлов:
+   - чистый пример: [samples/antivirus/clean/clean_script.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/clean/clean_script.ps1>)
+   - заражённый PowerShell-пример: [samples/antivirus/infected/demo_malicious.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/infected/demo_malicious.ps1>)
+   - заражённый PE-подобный пример: [samples/antivirus/infected/demo_malicious_pe.exe](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/infected/demo_malicious_pe.exe>)
+5. Убедиться, что для чистого файла угроз нет, а для заражённых файлов показывается имя угрозы
+6. Нажать `Scan Folder` и выбрать [samples/antivirus](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus>)
+7. Убедиться, что сканирование директории показывает количество проверенных файлов, количество заражённых файлов и пути к обнаруженным заражённым примерам
 
-## Verify the 2.5 flow
+## Проверка сценария 2.5
 
-1. Start the backend on `https://localhost:8443`
-2. Restart the Windows service so it recreates its on-disk antivirus storage
-3. Verify that the service creates `build\Release\avbases\` with:
+1. Запустить backend на `https://localhost:8443`
+2. Перезапустить Windows-службу, чтобы она заново создала локальное хранилище антивирусных баз
+3. Убедиться, что служба создала каталог `build\Release\avbases\` с файлами:
    - `antivirus-bases.default.bin`
    - `antivirus-bases.active.bin`
-4. Activate the product and open the tray window
-5. Verify that the initially loaded bundled bases show:
-   - release date `2026-05-23`
-   - record count `2`
-6. Wait about 30 seconds and refresh or reopen the tray window
-7. Verify that the bases switch to the backend-delivered package:
-   - release date `2026-05-24`
-   - record count `3`
-8. Before the scheduled update, [samples/antivirus/update-only/demo_updated_malicious.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/update-only/demo_updated_malicious.ps1>) should not be detected
-9. After the scheduled update, the same file should be detected as `Demo.Update.PowerShell.23358`
-10. To test recovery, stop the service, corrupt `build\Release\avbases\antivirus-bases.active.bin`, then start the service again and verify that it restores from backup or regenerates the bundled default bases
+4. Активировать продукт и открыть окно клиента из трея
+5. Убедиться, что изначально загруженные встроенные базы показывают:
+   - дату выпуска `2026-05-23`
+   - количество записей `2`
+6. Подождать около 30 секунд и обновить состояние окна или открыть его заново
+7. Убедиться, что базы переключились на пакет, полученный с backend:
+   - дата выпуска `2026-05-24`
+   - количество записей `3`
+8. До планового обновления файл [samples/antivirus/update-only/demo_updated_malicious.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/update-only/demo_updated_malicious.ps1>) не должен детектироваться
+9. После планового обновления этот же файл должен детектироваться как `Demo.Update.PowerShell.23358`
+10. Для проверки восстановления остановить службу, повредить `build\Release\avbases\antivirus-bases.active.bin`, затем снова запустить службу и убедиться, что она восстанавливает базы из резервной копии или заново создаёт встроенные базы по умолчанию
 
-## Build the server
+## Сборка сервера
 
 ```powershell
 cd server
@@ -182,54 +182,54 @@ cd server
 .\mvnw.cmd package
 ```
 
-Server artifact:
+Артефакт сервера:
 
 ```text
 server\target\server-0.0.1-SNAPSHOT.jar
 ```
 
-Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [server/README.md](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/README.md>).
+Подробная настройка сервера, HTTPS, PostgreSQL и примеры API описаны в [server/README.md](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/README.md>).
 
-## Client requirement checklist
+## Чек-лист требований к клиенту
 
-1. Tray icon on startup: `TrayApplication::AddTrayIcon`
-2. Left-click opens the main window: `WM_LBUTTONUP` / `NIN_SELECT`
-3. Right-click opens the tray context menu: `WM_RBUTTONUP` / `WM_CONTEXTMENU`
-4. `Open` menu item shows the main window: `kCommandOpen`
-5. `Exit` menu item terminates the app: `kCommandTrayExit`
-6. Tray icon is restored after taskbar recreation: `TaskbarCreated`
-7. Hidden startup mode: `--hidden`
-8. Closing the main window keeps the app running in background: `WM_CLOSE`
-9. Main menu contains `File -> Exit`: `CreateMainMenu`
-10. Single instance per Windows user: `SingleInstanceGuard`
-11. Pipeline build with CMake/MSBuild: `.github/workflows/build.yml`
-12. Build artifact is the ready-to-run executable: `InfoGuardTrayApp.exe`
-13. Current authenticated user is requested from the Windows service at startup: `LicenseService::RefreshSnapshot`
-14. Authentication form is shown while signed out: `TrayApplication::UpdateControlVisibility`
-15. Activation form is shown while no ticket is available: `TrayApplication::UpdateControlVisibility`
-16. Antivirus functionality unlocks after a valid ticket is present: `LicenseService::RefreshSnapshot`
-17. License state is polled periodically: `WM_TIMER` + `RefreshUiState`
-18. Antivirus bases release date and record count are shown after activation: `LicenseService::BuildStatusText`
-19. File scan is available from the main window: `TrayApplication::HandleScanFileCommand`
-20. Directory scan is available from the main window: `TrayApplication::HandleScanFolderCommand`
-21. Updated bases can change visible release date and record count without reinstalling the client: `WM_TIMER` + `RefreshUiState`
+1. Иконка в трее при запуске: `TrayApplication::AddTrayIcon`
+2. Левый клик открывает главное окно: `WM_LBUTTONUP` / `NIN_SELECT`
+3. Правый клик открывает контекстное меню трея: `WM_RBUTTONUP` / `WM_CONTEXTMENU`
+4. Пункт `Open` показывает главное окно: `kCommandOpen`
+5. Пункт `Exit` завершает приложение: `kCommandTrayExit`
+6. Иконка в трее восстанавливается после пересоздания панели задач: `TaskbarCreated`
+7. Скрытый режим запуска: `--hidden`
+8. Закрытие главного окна оставляет приложение работать в фоне: `WM_CLOSE`
+9. Главное меню содержит `File -> Exit`: `CreateMainMenu`
+10. Один экземпляр на пользователя Windows: `SingleInstanceGuard`
+11. Сборка через pipeline на CMake/MSBuild: `.github/workflows/build.yml`
+12. Артефакт сборки - готовый к запуску исполняемый файл: `InfoGuardTrayApp.exe`
+13. При запуске запрашивается текущий аутентифицированный пользователь из Windows-службы: `LicenseService::RefreshSnapshot`
+14. Пока пользователь не вошёл, показывается форма аутентификации: `TrayApplication::UpdateControlVisibility`
+15. Пока нет тикета лицензии, показывается форма активации: `TrayApplication::UpdateControlVisibility`
+16. После появления валидного тикета функциональность антивируса разблокируется: `LicenseService::RefreshSnapshot`
+17. Состояние лицензии периодически опрашивается: `WM_TIMER` + `RefreshUiState`
+18. После активации показываются дата выпуска баз и количество записей: `LicenseService::BuildStatusText`
+19. Сканирование файла доступно из главного окна: `TrayApplication::HandleScanFileCommand`
+20. Сканирование директории доступно из главного окна: `TrayApplication::HandleScanFolderCommand`
+21. После обновления баз дата выпуска и количество записей могут измениться без переустановки клиента: `WM_TIMER` + `RefreshUiState`
 
-## Windows service requirement checklist
+## Чек-лист требований к Windows-службе
 
-1. Launch client in every terminal session except `0`: `WTSEnumerateSessionsW` + `CreateProcessAsUserW`
-2. Launch client for new user logons: `SERVICE_CONTROL_SESSIONCHANGE`
-3. Ignore `Stop` / `Shutdown`: service status accepts only `SERVICE_ACCEPT_SESSIONCHANGE`
-4. Run until RPC server is stopped: `RpcServerListen`
-5. Expose RPC interface over ALPC: `ncalrpc` endpoint in `rpc/infoguard_service_rpc.idl`
-6. Keep tokens and tickets only in memory: `ServiceSessionManager`
-7. Refresh JWT and ticket according to their lifetimes: `ServiceSessionManager::WorkerLoop`
-8. Stop all launched tray clients on service shutdown: `TerminateAllChildProcesses`
-9. Load antivirus bases from disk when the service starts: `ServiceSessionManager::InitializeAntivirusStorage`
-10. Keep AV bases in a `std::map` keyed by signature prefix: `AntivirusEngine`
-11. Scan a file through the engine and expose it over RPC: `AntivirusEngine::ScanFile` + `InfoGuardRpcScanFile`
-12. Scan a directory through the engine and expose it over RPC: `AntivirusEngine::ScanDirectory` + `InfoGuardRpcScanDirectory`
-13. Expose antivirus base information over RPC: `InfoGuardRpcGetAntivirusBasesInfo`
-14. Persist antivirus bases to disk in a compact signed manifest format: `AntivirusEngine::InitializeStorage`
-15. Recover active bases from backup/default at startup: `AntivirusEngine::LoadBasesFromStorage`
-16. Skip records with invalid signatures while keeping the rest of the package: `ParsePackageBytes`
-17. Periodically download updated bases from the backend: `ServiceSessionManager::WorkerLoop` + `BackendApiClient::DownloadAntivirusBasesPackage`
+1. Запуск клиента во всех терминальных сессиях, кроме `0`: `WTSEnumerateSessionsW` + `CreateProcessAsUserW`
+2. Запуск клиента при новых входах пользователей: `SERVICE_CONTROL_SESSIONCHANGE`
+3. Игнорирование `Stop` / `Shutdown`: статус службы принимает только `SERVICE_ACCEPT_SESSIONCHANGE`
+4. Работа до остановки RPC-сервера: `RpcServerListen`
+5. RPC-интерфейс поверх ALPC: endpoint `ncalrpc` в `rpc/infoguard_service_rpc.idl`
+6. Хранение токенов и тикетов только в памяти: `ServiceSessionManager`
+7. Обновление JWT и тикета по срокам их действия: `ServiceSessionManager::WorkerLoop`
+8. Остановка всех запущенных клиентов при завершении службы: `TerminateAllChildProcesses`
+9. Загрузка антивирусных баз с диска при старте службы: `ServiceSessionManager::InitializeAntivirusStorage`
+10. Хранение AV-баз в `std::map` с ключом по префиксу сигнатуры: `AntivirusEngine`
+11. Сканирование файла через движок и публикация через RPC: `AntivirusEngine::ScanFile` + `InfoGuardRpcScanFile`
+12. Сканирование директории через движок и публикация через RPC: `AntivirusEngine::ScanDirectory` + `InfoGuardRpcScanDirectory`
+13. RPC-интерфейс для получения информации об антивирусных базах: `InfoGuardRpcGetAntivirusBasesInfo`
+14. Сохранение антивирусных баз на диск в компактном подписанном формате манифеста: `AntivirusEngine::InitializeStorage`
+15. Восстановление активных баз из backup/default при запуске: `AntivirusEngine::LoadBasesFromStorage`
+16. Пропуск записей с неверными подписями без потери остальных записей пакета: `ParsePackageBytes`
+17. Периодическая загрузка обновлённых баз с backend: `ServiceSessionManager::WorkerLoop` + `BackendApiClient::DownloadAntivirusBasesPackage`

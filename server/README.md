@@ -1,71 +1,71 @@
 # InfoGuardServer
 
-Backend for the course work:
+Backend для курсовой работы:
 
 - Java 21
 - Spring Boot 3.5.14
 - Spring Security
 - JWT access/refresh
-- signed license tickets
-- role model `ADMIN` / `USER`
+- подписанные лицензионные тикеты
+- ролевая модель `ADMIN` / `USER`
 - PostgreSQL
-- Flyway migrations
-- HTTPS with a development certificate whose serial number is `23358`
+- миграции Flyway
+- HTTPS с dev-сертификатом, у которого серийный номер `23358`
 
-## What the server does
+## Что делает сервер
 
-- creates a bootstrap administrator at first start
-- stores users in a relational database
-- stores activation codes and activated licenses bound to users/devices
-- issues JWT access and refresh tokens
-- issues signed `TicketResponse` payloads for active licenses
-- serves a signed binary antivirus-bases package for Windows-service updates
-- restricts `/api/admin/**` endpoints to administrators
-- supports create / activate / check / renew license flows
+- создаёт bootstrap-администратора при первом запуске
+- хранит пользователей в реляционной базе данных
+- хранит коды активации и активированные лицензии, привязанные к пользователям и устройствам
+- выдаёт JWT access и refresh токены
+- выдаёт подписанные `TicketResponse` для активных лицензий
+- раздаёт подписанный бинарный пакет антивирусных баз для обновления Windows-службы
+- ограничивает `/api/admin/**` только администраторами
+- поддерживает сценарии создания, активации, проверки и продления лицензий
 
-## Quick start
+## Быстрый старт
 
-### 1. Start PostgreSQL
+### 1. Запустить PostgreSQL
 
-If Docker Desktop is installed:
+Если установлен Docker Desktop:
 
 ```powershell
 cd server
 docker compose up -d
 ```
 
-This starts PostgreSQL on `localhost:5432` with:
+Это поднимет PostgreSQL на `localhost:5432` с параметрами:
 
-- database: `infoguard_db`
-- user: `infoguard`
-- password: `infoguard`
+- база данных: `infoguard_db`
+- пользователь: `infoguard`
+- пароль: `infoguard`
 
-### 2. Generate the HTTPS certificate
+### 2. Сгенерировать HTTPS-сертификат
 
 ```powershell
 cd server
 powershell -ExecutionPolicy Bypass -File .\scripts\generate-dev-certificate.ps1
 ```
 
-Files will be created in `src/main/resources/certs/`:
+Файлы будут созданы в `src/main/resources/certs/`:
 
 - `infoguard-dev.p12`
 - `infoguard-dev.cer`
 
-The generated certificate uses serial number `23358`.
+Сгенерированный сертификат использует серийный номер `23358`.
 
-The generated PKCS12 keystore contains one private-key entry with alias `1`, so the default server configuration uses `APP_SSL_KEY_ALIAS=1`.
+Сгенерированный PKCS12 keystore содержит одну private-key запись с alias `1`, поэтому стандартная конфигурация сервера использует `APP_SSL_KEY_ALIAS=1`.
 
-If the browser warns that `https://localhost:8443` is unsafe, trust the generated development certificate for the current Windows user:
+Если браузер предупреждает, что `https://localhost:8443` небезопасен, доверь сгенерированный dev-сертификат для текущего пользователя Windows:
 
 ```powershell
 cd server
 powershell -ExecutionPolicy Bypass -File .\scripts\trust-dev-certificate.ps1
 ```
 
-After import, fully close and reopen the browser.
+После импорта полностью закрой и заново открой браузер.
 
-### 3. Run tests and build
+### 3. Запустить тесты и собрать проект
 
 ```powershell
 cd server
@@ -73,76 +73,76 @@ cd server
 .\mvnw.cmd package
 ```
 
-### 4. Start the server
+### 4. Запустить сервер
 
 ```powershell
 cd server
 .\mvnw.cmd spring-boot:run
 ```
 
-By default the API starts at:
+По умолчанию API стартует на:
 
 ```text
 https://localhost:8443
 ```
 
-If port `8443` is already occupied, either stop the old Java process or run on another port:
+Если порт `8443` уже занят, останови старый Java-процесс или запусти сервер на другом порту:
 
 ```powershell
 $env:APP_SERVER_PORT=8444
 .\mvnw.cmd spring-boot:run
 ```
 
-## Default bootstrap admin
+## Bootstrap-администратор по умолчанию
 
-- username: `admin`
-- password: `Admin23358!`
+- логин: `admin`
+- пароль: `Admin23358!`
 
-Change these values through environment variables before production-like use:
+Перед использованием в условиях, похожих на production, поменяй эти значения через переменные окружения:
 
 - `APP_BOOTSTRAP_ADMIN_USERNAME`
 - `APP_BOOTSTRAP_ADMIN_PASSWORD`
 - `APP_JWT_SECRET`
 
-## Main endpoints
+## Основные эндпоинты
 
-### Public
+### Публичные
 
 - `GET /api/public/ping`
 - `GET /api/public/antivirus/bases`
 
-### Authentication
+### Аутентификация
 
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
 
-### Administration
+### Администрирование
 
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `POST /api/admin/licenses`
 - `POST /api/admin/licenses/{licenseId}/renew`
 
-### Licenses
+### Лицензии
 
 - `GET /api/licenses/me`
 - `GET /api/licenses/current?deviceId=...`
 - `POST /api/licenses/activate`
 
-### Client bootstrap
+### Инициализация клиента
 
 - `GET /api/client/bootstrap`
 
 ## Postman
 
-Ready-made Postman files are included:
+В репозитории уже лежат готовые Postman-файлы:
 
 - [server/postman/InfoGuardServer.postman_collection.json](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/postman/InfoGuardServer.postman_collection.json>)
 - [server/postman/InfoGuardServer.local.postman_environment.json](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/postman/InfoGuardServer.local.postman_environment.json>)
 
-Recommended order in Postman:
+Рекомендуемый порядок запросов в Postman:
 
 1. `Public / Ping`
 2. `Authentication / Login Admin`
@@ -153,11 +153,11 @@ Recommended order in Postman:
 7. `Licenses / Activate`
 8. `Licenses / Current Ticket`
 
-If Postman rejects the self-signed certificate, either trust the local certificate with `trust-dev-certificate.ps1` or temporarily disable SSL certificate verification in Postman settings for local development.
+Если Postman не принимает self-signed сертификат, либо доверь локальный сертификат через `trust-dev-certificate.ps1`, либо временно отключи проверку SSL certificate verification в настройках Postman для локальной разработки.
 
-## Example requests
+## Примеры запросов
 
-### Login
+### Вход
 
 ```http
 POST /api/auth/login
@@ -169,7 +169,7 @@ Content-Type: application/json
 }
 ```
 
-### Create user as admin
+### Создание пользователя администратором
 
 ```http
 POST /api/admin/users
@@ -184,7 +184,7 @@ Content-Type: application/json
 }
 ```
 
-### Activate a product code for the current user
+### Активация кода продукта для текущего пользователя
 
 ```http
 POST /api/licenses/activate
@@ -197,14 +197,14 @@ Content-Type: application/json
 }
 ```
 
-### Check the current signed ticket
+### Проверка текущего подписанного тикета
 
 ```http
 GET /api/licenses/current?deviceId=DEV-23358-DEMO
 Authorization: Bearer <access-token>
 ```
 
-### Refresh token
+### Обновление токена
 
 ```http
 POST /api/auth/refresh
@@ -215,25 +215,25 @@ Content-Type: application/json
 }
 ```
 
-### Download antivirus bases package
+### Загрузка пакета антивирусных баз
 
 ```http
 GET /api/public/antivirus/bases
 Accept: application/octet-stream
 ```
 
-The response is a compact binary package with:
+В ответ сервер возвращает компактный бинарный пакет, который содержит:
 
-- manifest header
-- UTF-8 release date
-- serialized antivirus records
-- manifest signature
+- заголовок манифеста
+- дату выпуска в UTF-8
+- сериализованные антивирусные записи
+- подпись манифеста
 
-The backend currently serves a package with release date `2026-05-24` and `3` records. The Windows service uses it for scheduled antivirus-base updates.
+Сейчас backend отдает пакет с датой выпуска `2026-05-24` и `3` записями. Windows-служба использует его для плановых обновлений антивирусных баз.
 
-## Environment variables
+## Переменные окружения
 
-Useful overrides from [src/main/resources/application.yml](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/src/main/resources/application.yml>):
+Полезные override-параметры из [src/main/resources/application.yml](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/src/main/resources/application.yml>):
 
 - `APP_DB_URL`
 - `APP_DB_USERNAME`
@@ -252,9 +252,9 @@ Useful overrides from [src/main/resources/application.yml](</C:/Users/musht/Docu
 - `APP_LICENSE_TICKET_LIFETIME`
 - `APP_LICENSE_TICKET_SIGNATURE_SECRET`
 
-## How it connects to the Win32 service
+## Как сервер связан с Win32-службой
 
-The Windows service now talks to the backend over HTTPS and keeps all JWT tokens and license tickets in memory. The Win32 GUI never receives raw JWTs or raw ticket payloads. The service uses:
+Теперь Windows-служба общается с backend по HTTPS и хранит все JWT-токены и лицензионные тикеты только в памяти. Win32 GUI никогда не получает ни сырые JWT, ни сырой payload тикета. Служба использует:
 
 1. `POST /api/auth/login`
 2. `POST /api/auth/refresh`
