@@ -17,7 +17,9 @@ enum class ScanObjectType : unsigned int {
 struct AntivirusBasesInfo {
     bool loaded = false;
     std::wstring release_date;
+    std::wstring source_path;
     unsigned long long record_count = 0;
+    unsigned long long skipped_record_count = 0;
 };
 
 struct ScanResultInfo {
@@ -36,7 +38,9 @@ class AntivirusEngine {
 public:
     AntivirusEngine();
 
-    bool LoadBases(std::wstring* error_message);
+    bool InitializeStorage(const std::wstring& service_module_directory, std::wstring* error_message);
+    bool LoadBasesFromStorage(std::wstring* error_message);
+    bool UpdateBasesFromPackage(const std::vector<std::uint8_t>& package_bytes, std::wstring* error_message);
     void UnloadBases();
     AntivirusBasesInfo GetBasesInfo() const;
 
@@ -64,7 +68,9 @@ public:
     struct DatabaseSnapshot {
         bool loaded = false;
         std::wstring release_date;
+        std::wstring source_path;
         unsigned long long record_count = 0;
+        unsigned long long skipped_record_count = 0;
         std::map<std::uint64_t, std::vector<SignatureRecord>> index;
     };
 
@@ -73,4 +79,9 @@ private:
 
     mutable std::mutex mutex_;
     DatabaseSnapshot database_;
+    std::wstring module_directory_;
+    std::wstring storage_directory_;
+    std::wstring default_database_path_;
+    std::wstring active_database_path_;
+    std::wstring backup_database_path_;
 };

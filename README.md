@@ -46,10 +46,14 @@ Repository with two parts for the assignment:
 - stores the active license ticket only in memory
 - refreshes the active license ticket based on ticket lifetime and expiration
 - exposes RPC methods for current user, sign-in, sign-out, current license, activation, and service stop
-- loads in-memory antivirus bases after a valid license ticket appears
+- stores antivirus bases on disk in a compact signed binary format
+- loads antivirus bases from disk when the service starts
+- restores antivirus bases from a backup copy when the active manifest is invalid
+- falls back to the bundled default bases when no healthy active or backup copy exists
 - keeps antivirus signatures in a `std::map` keyed by the first 8 bytes of a signature
 - verifies a signature hash and a record integrity signature before reporting a detection
 - scans individual files and directories through RPC without exposing JWTs or tickets to the GUI
+- periodically downloads updated antivirus bases from the Java backend over HTTPS
 - terminates all launched tray clients when the service stops
 
 ## Server features
@@ -93,9 +97,11 @@ Service-to-server integration uses these optional environment variables:
 ```text
 INFOGUARD_API_URL=https://localhost:8443
 INFOGUARD_API_INSECURE_TLS=1
+INFOGUARD_AV_UPDATE_INTERVAL_SECONDS=30
 ```
 
 `INFOGUARD_API_INSECURE_TLS=1` is convenient for local development because the Windows service runs under a system account and talks to the local self-signed HTTPS endpoint.
+`INFOGUARD_AV_UPDATE_INTERVAL_SECONDS` overrides the default update interval. By default the service checks for new bases every `30` seconds.
 
 ## Install and verify the Windows service
 
@@ -149,6 +155,25 @@ Important behavior:
 6. Click `Scan Folder` and select [samples/antivirus](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus>)
 7. Verify that the directory scan reports the scanned-file count, infected-file count, and sample infected paths
 
+## Verify the 2.5 flow
+
+1. Start the backend on `https://localhost:8443`
+2. Restart the Windows service so it recreates its on-disk antivirus storage
+3. Verify that the service creates `build\Release\avbases\` with:
+   - `antivirus-bases.default.bin`
+   - `antivirus-bases.active.bin`
+4. Activate the product and open the tray window
+5. Verify that the initially loaded bundled bases show:
+   - release date `2026-05-23`
+   - record count `2`
+6. Wait about 30 seconds and refresh or reopen the tray window
+7. Verify that the bases switch to the backend-delivered package:
+   - release date `2026-05-24`
+   - record count `3`
+8. Before the scheduled update, [samples/antivirus/update-only/demo_updated_malicious.ps1](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/samples/antivirus/update-only/demo_updated_malicious.ps1>) should not be detected
+9. After the scheduled update, the same file should be detected as `Demo.Update.PowerShell.23358`
+10. To test recovery, stop the service, corrupt `build\Release\avbases\antivirus-bases.active.bin`, then start the service again and verify that it restores from backup or regenerates the bundled default bases
+
 ## Build the server
 
 ```powershell
@@ -187,6 +212,7 @@ Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [ser
 18. Antivirus bases release date and record count are shown after activation: `LicenseService::BuildStatusText`
 19. File scan is available from the main window: `TrayApplication::HandleScanFileCommand`
 20. Directory scan is available from the main window: `TrayApplication::HandleScanFolderCommand`
+21. Updated bases can change visible release date and record count without reinstalling the client: `WM_TIMER` + `RefreshUiState`
 
 ## Windows service requirement checklist
 
@@ -198,8 +224,12 @@ Detailed server setup, HTTPS, PostgreSQL, and API examples are described in [ser
 6. Keep tokens and tickets only in memory: `ServiceSessionManager`
 7. Refresh JWT and ticket according to their lifetimes: `ServiceSessionManager::WorkerLoop`
 8. Stop all launched tray clients on service shutdown: `TerminateAllChildProcesses`
-9. Load antivirus bases after activation: `ServiceSessionManager::EnsureBasesLoaded`
+9. Load antivirus bases from disk when the service starts: `ServiceSessionManager::InitializeAntivirusStorage`
 10. Keep AV bases in a `std::map` keyed by signature prefix: `AntivirusEngine`
 11. Scan a file through the engine and expose it over RPC: `AntivirusEngine::ScanFile` + `InfoGuardRpcScanFile`
 12. Scan a directory through the engine and expose it over RPC: `AntivirusEngine::ScanDirectory` + `InfoGuardRpcScanDirectory`
 13. Expose antivirus base information over RPC: `InfoGuardRpcGetAntivirusBasesInfo`
+14. Persist antivirus bases to disk in a compact signed manifest format: `AntivirusEngine::InitializeStorage`
+15. Recover active bases from backup/default at startup: `AntivirusEngine::LoadBasesFromStorage`
+16. Skip records with invalid signatures while keeping the rest of the package: `ParsePackageBytes`
+17. Periodically download updated bases from the backend: `ServiceSessionManager::WorkerLoop` + `BackendApiClient::DownloadAntivirusBasesPackage`

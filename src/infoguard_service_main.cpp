@@ -425,6 +425,12 @@ private:
 
         ReportStatus(SERVICE_START_PENDING, 0, NO_ERROR, 3000);
 
+        std::wstring bases_error;
+        if (!session_manager_.InitializeAntivirusStorage(module_directory_, &bases_error)) {
+            ReportStatus(SERVICE_STOPPED, 0, ERROR_GEN_FAILURE, 0);
+            return;
+        }
+
         const RPC_STATUS init_status = InitializeRpcServer();
         if (init_status != RPC_S_OK) {
             ReportStatus(SERVICE_STOPPED, 0, init_status, 0);

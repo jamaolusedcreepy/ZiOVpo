@@ -19,6 +19,7 @@ Backend for the course work:
 - stores activation codes and activated licenses bound to users/devices
 - issues JWT access and refresh tokens
 - issues signed `TicketResponse` payloads for active licenses
+- serves a signed binary antivirus-bases package for Windows-service updates
 - restricts `/api/admin/**` endpoints to administrators
 - supports create / activate / check / renew license flows
 
@@ -108,6 +109,7 @@ Change these values through environment variables before production-like use:
 ### Public
 
 - `GET /api/public/ping`
+- `GET /api/public/antivirus/bases`
 
 ### Authentication
 
@@ -213,6 +215,22 @@ Content-Type: application/json
 }
 ```
 
+### Download antivirus bases package
+
+```http
+GET /api/public/antivirus/bases
+Accept: application/octet-stream
+```
+
+The response is a compact binary package with:
+
+- manifest header
+- UTF-8 release date
+- serialized antivirus records
+- manifest signature
+
+The backend currently serves a package with release date `2026-05-24` and `3` records. The Windows service uses it for scheduled antivirus-base updates.
+
 ## Environment variables
 
 Useful overrides from [src/main/resources/application.yml](</C:/Users/musht/Documents/Codex/2026-05-22/2-1-gitlab-merge-request-github/server/src/main/resources/application.yml>):
@@ -243,3 +261,4 @@ The Windows service now talks to the backend over HTTPS and keeps all JWT tokens
 3. `POST /api/auth/logout`
 4. `GET /api/licenses/current?deviceId=...`
 5. `POST /api/licenses/activate`
+6. `GET /api/public/antivirus/bases`

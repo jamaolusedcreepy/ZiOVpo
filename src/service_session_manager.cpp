@@ -12,6 +12,7 @@ namespace {
 
 constexpr unsigned long long kFileTimeTicksPerSecond = 10000000ull;
 constexpr unsigned long long kRefreshSafetySeconds = 60ull;
+constexpr unsigned long long kDefaultBasesUpdateIntervalSeconds = 30ull;
 
 unsigned long long NowFileTime() {
     FILETIME file_time = {};
@@ -62,6 +63,21 @@ std::wstring GetComputerIdentity() {
     return buffer;
 }
 
+unsigned long long GetBasesUpdateIntervalSeconds() {
+    wchar_t buffer[32] = {};
+    const DWORD size = GetEnvironmentVariableW(L"INFOGUARD_AV_UPDATE_INTERVAL_SECONDS", buffer, static_cast<DWORD>(std::size(buffer)));
+    if (size == 0 || size >= std::size(buffer)) {
+        return kDefaultBasesUpdateIntervalSeconds;
+    }
+
+    try {
+        const unsigned long long value = std::stoull(buffer);
+        return value == 0 ? kDefaultBasesUpdateIntervalSeconds : value;
+    } catch (...) {
+        return kDefaultBasesUpdateIntervalSeconds;
+    }
+}
+
 DWORD MapLoginError(const std::wstring& error_message) {
     if (error_message.find(L"Invalid username or password") != std::wstring::npos) {
         return ERROR_LOGON_FAILURE;
@@ -83,11 +99,33 @@ DWORD MapLicenseError(const std::wstring& error_message, bool not_found) {
 }  // namespace
 
 ServiceSessionManager::ServiceSessionManager()
-    : device_id_(GetDeviceId()) {
+    : device_id_(GetDeviceId()),
+      bases_update_interval_seconds_(GetBasesUpdateIntervalSeconds()) {
 }
 
 ServiceSessionManager::~ServiceSessionManager() {
     Stop();
+}
+
+bool ServiceSessionManager::InitializeAntivirusStorage(
+    const std::wstring& service_module_directory,
+    std::wstring* error_message) {
+    if (antivirus_engine_.InitializeStorage(service_module_directory, error_message)) {
+        return true;
+    }
+
+    std::vector<std::uint8_t> downloaded_package;
+    std::wstring update_error;
+    if (!backend_api_client_.DownloadAntivirusBasesPackage(&downloaded_package, &update_error)) {
+        return false;
+    }
+
+    if (!antivirus_engine_.UpdateBasesFromPackage(downloaded_package, error_message)) {
+        return false;
+    }
+
+    error_message->clear();
+    return true;
 }
 
 void ServiceSessionManager::Start() {
@@ -97,6 +135,7 @@ void ServiceSessionManager::Start() {
     }
 
     stop_requested_ = false;
+    next_bases_update_due_ = NowFileTime() + SecondsToFileTimeTicks(bases_update_interval_seconds_);
     worker_thread_ = std::thread(&ServiceSessionManager::WorkerLoop, this);
 }
 
@@ -244,12 +283,12 @@ DWORD ServiceSessionManager::ActivateProduct(
 DWORD ServiceSessionManager::GetAntivirusBasesInfo(
     ServiceAntivirusBasesInfo* bases_info,
     std::wstring* error_message) {
-    const DWORD load_result = EnsureBasesLoaded(error_message);
-    if (load_result != ERROR_SUCCESS) {
-        return load_result;
+    const AntivirusBasesInfo info = antivirus_engine_.GetBasesInfo();
+    if (!info.loaded) {
+        *error_message = L"Antivirus bases are not currently loaded in the Windows service.";
+        return ERROR_NOT_READY;
     }
 
-    const AntivirusBasesInfo info = antivirus_engine_.GetBasesInfo();
     bases_info->loaded = info.loaded;
     bases_info->release_date = info.release_date;
     bases_info->record_count = info.record_count;
@@ -345,6 +384,7 @@ void ServiceSessionManager::WorkerLoop() {
             None,
             RefreshTokens,
             RefreshLicense,
+            UpdateBases,
         };
 
         Operation operation = Operation::None;
@@ -355,29 +395,28 @@ void ServiceSessionManager::WorkerLoop() {
             std::unique_lock<std::mutex> lock(mutex_);
 
             while (!stop_requested_) {
-                if (!authenticated_) {
-                    condition_variable_.wait(lock, [this] { return stop_requested_ || authenticated_; });
-                    continue;
-                }
-
                 const unsigned long long now = NowFileTime();
-                const unsigned long long token_due = ComputeTokenRefreshDueLocked();
-                const unsigned long long license_due = ComputeTicketRefreshDueLocked();
+                const unsigned long long token_due = authenticated_ ? ComputeTokenRefreshDueLocked() : 0;
+                const unsigned long long license_due = authenticated_ ? ComputeTicketRefreshDueLocked() : 0;
+                const unsigned long long bases_due = ComputeBasesUpdateDueLocked();
 
                 unsigned long long next_due = token_due;
                 if (license_due != 0 && (next_due == 0 || license_due < next_due)) {
                     next_due = license_due;
                 }
+                if (bases_due != 0 && (next_due == 0 || bases_due < next_due)) {
+                    next_due = bases_due;
+                }
 
                 if (next_due == 0) {
-                    condition_variable_.wait(lock, [this] { return stop_requested_ || !authenticated_ || has_ticket_; });
+                    condition_variable_.wait(lock, [this] { return stop_requested_; });
                     continue;
                 }
 
                 if (now < next_due) {
                     const unsigned long long wait_ticks = next_due - now;
                     const auto wait_duration = std::chrono::milliseconds(static_cast<long long>(wait_ticks / 10000ull));
-                    condition_variable_.wait_for(lock, wait_duration, [this] { return stop_requested_ || !authenticated_; });
+                    condition_variable_.wait_for(lock, wait_duration, [this] { return stop_requested_; });
                     continue;
                 }
 
@@ -390,6 +429,12 @@ void ServiceSessionManager::WorkerLoop() {
                 if (license_due != 0 && now >= license_due) {
                     operation = Operation::RefreshLicense;
                     access_token = tokens_.access_token;
+                    break;
+                }
+
+                if (bases_due != 0 && now >= bases_due) {
+                    operation = Operation::UpdateBases;
+                    next_bases_update_due_ = now + SecondsToFileTimeTicks(bases_update_interval_seconds_);
                     break;
                 }
 
@@ -445,6 +490,13 @@ void ServiceSessionManager::WorkerLoop() {
             std::wstring ignored_load_error;
             EnsureBasesLoaded(&ignored_load_error);
             condition_variable_.notify_all();
+            continue;
+        }
+
+        if (operation == Operation::UpdateBases) {
+            std::wstring ignored_error;
+            TryUpdateAntivirusBases(&ignored_error);
+            condition_variable_.notify_all();
         }
     }
 }
@@ -458,7 +510,6 @@ void ServiceSessionManager::ClearAuthStateLocked() {
 void ServiceSessionManager::ClearTicketLocked() {
     ticket_ = BackendTicketInfo{};
     has_ticket_ = false;
-    antivirus_engine_.UnloadBases();
 }
 
 void ServiceSessionManager::CopyUserInfoLocked(ServiceAuthenticatedUserInfo* user_info) const {
@@ -502,6 +553,10 @@ unsigned long long ServiceSessionManager::ComputeTicketRefreshDueLocked() const 
         ticket_.expires_at > safety_ticks ? ticket_.expires_at - safety_ticks : 1;
 
     return std::min(ticket_due, expiry_due);
+}
+
+unsigned long long ServiceSessionManager::ComputeBasesUpdateDueLocked() const {
+    return next_bases_update_due_;
 }
 
 DWORD ServiceSessionManager::RefreshCurrentLicenseState(
@@ -550,26 +605,27 @@ DWORD ServiceSessionManager::RefreshCurrentLicenseState(
 }
 
 DWORD ServiceSessionManager::EnsureBasesLoaded(std::wstring* error_message) {
-    {
-        std::lock_guard<std::mutex> guard(mutex_);
-        if (!authenticated_ || !has_ticket_) {
-            *error_message = L"An active license ticket is required before antivirus bases can be used.";
-            return ERROR_NOT_FOUND;
-        }
-    }
-
     const AntivirusBasesInfo info = antivirus_engine_.GetBasesInfo();
-    if (info.loaded && info.record_count > 0) {
+    if (info.loaded) {
         error_message->clear();
         return ERROR_SUCCESS;
     }
 
-    if (!antivirus_engine_.LoadBases(error_message)) {
+    if (!antivirus_engine_.LoadBasesFromStorage(error_message)) {
         return ERROR_NOT_READY;
     }
 
     error_message->clear();
     return ERROR_SUCCESS;
+}
+
+bool ServiceSessionManager::TryUpdateAntivirusBases(std::wstring* error_message) {
+    std::vector<std::uint8_t> downloaded_package;
+    if (!backend_api_client_.DownloadAntivirusBasesPackage(&downloaded_package, error_message)) {
+        return false;
+    }
+
+    return antivirus_engine_.UpdateBasesFromPackage(downloaded_package, error_message);
 }
 
 std::wstring ServiceSessionManager::GetDeviceId() const {

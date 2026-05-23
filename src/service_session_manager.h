@@ -47,6 +47,7 @@ public:
     ServiceSessionManager();
     ~ServiceSessionManager();
 
+    bool InitializeAntivirusStorage(const std::wstring& service_module_directory, std::wstring* error_message);
     void Start();
     void Stop();
 
@@ -77,8 +78,10 @@ private:
     void CopyLicenseInfoLocked(ServiceActiveLicenseInfo* license_info) const;
     unsigned long long ComputeTokenRefreshDueLocked() const;
     unsigned long long ComputeTicketRefreshDueLocked() const;
+    unsigned long long ComputeBasesUpdateDueLocked() const;
     DWORD RefreshCurrentLicenseState(bool allow_license_missing, std::wstring* error_message);
     DWORD EnsureBasesLoaded(std::wstring* error_message);
+    bool TryUpdateAntivirusBases(std::wstring* error_message);
     std::wstring GetDeviceId() const;
 
     AntivirusEngine antivirus_engine_;
@@ -90,6 +93,8 @@ private:
     bool stop_requested_ = false;
     bool authenticated_ = false;
     bool has_ticket_ = false;
+    unsigned long long bases_update_interval_seconds_ = 300;
+    unsigned long long next_bases_update_due_ = 0;
     BackendTokenBundle tokens_;
     BackendTicketInfo ticket_;
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 struct BackendUserInfo {
     unsigned long long user_id = 0;
@@ -61,4 +62,8 @@ public:
         BackendTicketInfo* ticket,
         std::wstring* error_message,
         bool* license_missing = nullptr) const;
+
+    bool DownloadAntivirusBasesPackage(
+        std::vector<std::uint8_t>* package_bytes,
+        std::wstring* error_message) const;
 };

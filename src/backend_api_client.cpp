@@ -775,3 +775,32 @@ bool BackendApiClient::ActivateLicense(
 
     return ParseTicketResponse(response, ticket, error_message);
 }
+
+bool BackendApiClient::DownloadAntivirusBasesPackage(
+    std::vector<std::uint8_t>* package_bytes,
+    std::wstring* error_message) const {
+    const HttpResponse response = SendRequest(
+        L"GET",
+        GetBaseUrl() + L"/api/public/antivirus/bases",
+        L"",
+        "");
+
+    if (!response.transport_ok) {
+        *error_message = response.error_message;
+        return false;
+    }
+
+    if (response.status_code != 200) {
+        *error_message = BuildErrorMessage(response, L"Antivirus bases download failed with");
+        return false;
+    }
+
+    package_bytes->assign(response.body.begin(), response.body.end());
+    if (package_bytes->empty()) {
+        *error_message = L"The backend returned an empty antivirus bases package.";
+        return false;
+    }
+
+    error_message->clear();
+    return true;
+}
