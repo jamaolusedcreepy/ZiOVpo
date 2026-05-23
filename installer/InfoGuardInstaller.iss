@@ -83,6 +83,46 @@ begin
   Result := True;
 end;
 
+function QueryCommandExitCode(const CommandLine: string; var ResultCode: Integer): Boolean;
+begin
+  Result := Exec(
+    ExpandConstant('{cmd}'),
+    '/C ' + CommandLine,
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode);
+end;
+
+function ServiceExists: Boolean;
+var
+  ResultCode: Integer;
+begin
+  if not QueryCommandExitCode('sc.exe query "{#ServiceName}" >NUL 2>&1', ResultCode) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  Result := ResultCode = 0;
+end;
+
+procedure WaitForServiceDeletion;
+var
+  Attempt: Integer;
+begin
+  for Attempt := 0 to 19 do
+  begin
+    if not ServiceExists then
+      Exit;
+
+    Sleep(500);
+  end;
+
+  if ServiceExists then
+    RaiseException('Timed out while waiting for the old InfoGuard Windows service registration to be removed.');
+end;
+
 procedure StopInfoGuardProcesses;
 var
   ResultCode: Integer;
@@ -107,6 +147,12 @@ var
 begin
   StopInfoGuardProcesses;
 
+  if not ServiceExists then
+  begin
+    Log('The InfoGuard Windows service is not currently registered.');
+    Exit;
+  end;
+
   ServiceExe := ExpandConstant('{app}\{#ServiceExeName}');
   if FileExists(ServiceExe) then
   begin
@@ -122,11 +168,13 @@ begin
     SW_HIDE,
     ewWaitUntilTerminated,
     ResultCode);
+
+  WaitForServiceDeletion;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  StopInfoGuardProcesses;
+  RemoveInfoGuardService;
   Result := '';
 end;
 
